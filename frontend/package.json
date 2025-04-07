@@ -1,0 +1,18 @@
+{
+  "name": "learning-platform-frontend",
+  "version": "1.0.0",
+  "description": "Frontend für die nutzungsfreundliche Lernplattform",
+  "private": true,
+  "scripts": {
+    "serve": "vue-cli-service serve",
+    "build": "vue-cli-service build"
+  },
+  "dependencies": {
+    "vue": "^3.2.0",
+    "chart.js": "^3.9.1",
+    "chartjs-plugin-annotation": "^1.2.1"
+  },
+  "devDependencies": {
+    "@vue/cli-service": "^5.0.0"
+  }
+}

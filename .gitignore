@@ -1,0 +1,4 @@
+frontend/package-lock.json
+/frontend/node_modules
+/backend/__pycache__
+backend/learning_platform.db
