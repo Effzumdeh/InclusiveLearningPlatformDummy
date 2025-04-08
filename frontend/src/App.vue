@@ -1,11 +1,11 @@
 <template>
   <div class="app">
     <header>
-      <h1>Willkommen auf der nutzungsfreundlichen Lernplattform</h1>
+      <h1>Willkommen auf der Lernplattform</h1>
     </header>
     <div class="next-meeting-box">
       <div class="meeting-text">
-        Dein nächster Kurstermin findet statt am: {{ meetingStartFormatted }} – {{ meetingEndFormatted }}
+        Dein nächster Kurstermin findet statt am: {{ meetingStartFull }} – {{ meetingEndFull }}
         <br />
         Thema: Digitale Diversität
       </div>
@@ -18,7 +18,6 @@
       </button>
     </div>
     <router-view />
-    <!-- Support-Chatbot Overlay -->
     <div class="chat-overlay">
       <button class="chat-btn" @click="toggleChat">?</button>
       <div v-if="chatOpen" class="chat-window">
@@ -34,7 +33,6 @@
         </div>
         <div class="chat-footer">
           <input type="text" placeholder="Nachricht eingeben..." v-model="chatInput" @keyup.enter="sendMessage" />
-          <!-- Mikrofon-Button zur Spracherkennung -->
           <button class="mic-btn" @click="toggleSpeechRecognition">
             <span v-if="isListening">🛑</span>
             <span v-else>🎤</span>
@@ -47,11 +45,10 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed } from "vue";
 export default {
   name: "App",
   setup() {
-    // Chat-Funktionen
     const chatOpen = ref(false);
     const chatInput = ref("");
     const chatMessages = ref([]);
@@ -79,16 +76,36 @@ export default {
       chatMessages.value.push({ text, timestamp });
     };
 
-    // Meeting-Funktionalität
     const meetingStartTime = ref(new Date(Date.now() + 2 * 60 * 1000));
     const meetingEndTime = ref(new Date(meetingStartTime.value.getTime() + 60 * 60 * 1000));
 
-    const meetingStartFormatted = computed(() =>
-      meetingStartTime.value.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    );
-    const meetingEndFormatted = computed(() =>
-      meetingEndTime.value.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    );
+    const getDayLabel = (dateObj) => {
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const dayAfter = new Date(today);
+      dayAfter.setDate(dayAfter.getDate() + 2);
+
+      const compare = new Date(dateObj);
+      compare.setHours(0,0,0,0);
+
+      if(compare.getTime() === today.getTime()) return "(heute)";
+      if(compare.getTime() === tomorrow.getTime()) return "(morgen)";
+      if(compare.getTime() === dayAfter.getTime()) return "(übermorgen)";
+      return "";
+    };
+
+    const meetingStartFull = computed(() => {
+      const datePart = meetingStartTime.value.toLocaleDateString([], { day: "numeric", month: "long", year: "numeric" });
+      const timePart = meetingStartTime.value.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return `${datePart} ${timePart} ${getDayLabel(meetingStartTime.value)}`;
+    });
+    const meetingEndFull = computed(() => {
+      const datePart = meetingEndTime.value.toLocaleDateString([], { day: "numeric", month: "long", year: "numeric" });
+      const timePart = meetingEndTime.value.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return `${datePart} ${timePart}`;
+    });
 
     const meetingActive = ref(false);
     setInterval(() => {
@@ -103,7 +120,6 @@ export default {
       }
     };
 
-    // Spracherkennung (Web Speech API)
     const isListening = ref(false);
     let recognition = null;
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -142,8 +158,8 @@ export default {
       chatMessages,
       toggleChat,
       sendMessage,
-      meetingStartFormatted,
-      meetingEndFormatted,
+      meetingStartFull,
+      meetingEndFull,
       meetingActive,
       handleMeetingClick,
       isListening,

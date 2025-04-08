@@ -9,20 +9,20 @@ sowie ein Standard-Tagesziel) generiert.
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy import inspect, text
 from datetime import date, timedelta
 from database import engine, SessionLocal, Base
 from models import Course, LearningPath, UserStatistic, UserSetting, Comment
+from dependencies import get_db
 
-# Erstelle alle Datenbanktabellen, falls sie noch nicht existieren
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Lernplattform API",
-    description="Backend-API zur Unterstützung der nutzungsfreundlichen Lernplattform.",
+    description="Backend-API zur Unterstützung der Lernplattform.",
     version="1.0.0"
 )
 
-# Erlaube CORS-Anfragen vom Frontend
 origins = [
     "http://localhost",
     "http://localhost:8080",
@@ -36,47 +36,53 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def get_db():
-    """
-    Abhängigkeitsfunktion zur Bereitstellung einer Datenbanksession.
-    """
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
 @app.on_event("startup")
 def startup_event() -> None:
-    """
-    Beim Starten der Anwendung werden Demo-Daten generiert:
-    - Demo-Kurse und ein Demo-Lernpfad, sofern noch nicht vorhanden.
-    - Fiktive Nutzungsstatistiken (Lernminuten pro Tag) für die letzten 7 Tage.
-    - Ein Standard-Tagesziel (falls noch nicht vorhanden).
-    """
+    inspector = inspect(engine)
+    if inspector.has_table("courses"):
+        course_columns = [col["name"] for col in inspector.get_columns("courses")]
+        with engine.begin() as connection:
+            if "short_description" not in course_columns:
+                connection.execute(text("ALTER TABLE courses ADD COLUMN short_description VARCHAR"))
+                print("Spalte 'short_description' zu Tabelle courses hinzugefügt.")
+            if "course_content" not in course_columns:
+                connection.execute(text("ALTER TABLE courses ADD COLUMN course_content VARCHAR"))
+                print("Spalte 'course_content' zu Tabelle courses hinzugefügt.")
+                if "detailed_description" in course_columns:
+                    connection.execute(text("UPDATE courses SET course_content = detailed_description"))
+                    print("Werte von 'detailed_description' in 'course_content' kopiert.")
+
     db: Session = SessionLocal()
-    # Demo-Kurse generieren
     if db.query(Course).first() is None:
-        course1 = Course(title="Digitale Diversität", description="Platzhalterinhalte zur digitalen Diversität. Inhalt folgt bald.")
-        course2 = Course(title="Fortgeschrittene Python-Techniken", description="Vertiefung in fortgeschrittene Python-Konzepte.")
-        course3 = Course(title="Datenbanken und SQL", description="Einführung in relationale Datenbanken und SQL.")
+        course1 = Course(
+            title="Digitale Diversität",
+            short_description="Platzhalterinhalte zur digitalen Diversität.",
+            course_content=""
+        )
+        course2 = Course(
+            title="Fortgeschrittene Python-Techniken",
+            short_description="Vertiefung in fortgeschrittene Python-Konzepte.",
+            course_content=""
+        )
+        course3 = Course(
+            title="Datenbanken und SQL",
+            short_description="Einführung in relationale Datenbanken und SQL.",
+            course_content=""
+        )
         db.add_all([course1, course2, course3])
         db.commit()
-    # Demo-Lernpfad generieren, der alle vorhandenen Kurse enthält
     if db.query(LearningPath).first() is None:
         courses = db.query(Course).all()
         learning_path = LearningPath(name="Demo Lernpfad", courses=courses)
         db.add(learning_path)
         db.commit()
-    # Fiktive Nutzungsstatistiken für die letzten 7 Tage generieren
     today = date.today()
     for i in range(7):
         stat_date = today - timedelta(days=i)
         if not db.query(UserStatistic).filter(UserStatistic.date == stat_date).first():
-            minutes = 30 + i * 10  # Beispielwerte
+            minutes = 30 + i * 10
             user_stat = UserStatistic(date=stat_date, minutes=minutes)
             db.add(user_stat)
-    # Standard-Tagesziel generieren (sofern noch nicht vorhanden)
     if not db.query(UserSetting).first():
         setting = UserSetting(daily_target=60)
         db.add(setting)
@@ -85,58 +91,28 @@ def startup_event() -> None:
 
 @app.get("/api")
 def read_api() -> dict:
-    """
-    Ein einfacher Endpunkt, der eine JSON-Antwort liefert.
-    """
     return {"message": "Hello from FastAPI with Database, Usage Stats and User Settings!"}
-
-@app.get("/api/courses")
-def get_courses(db: Session = Depends(get_db)) -> list:
-    """
-    Endpunkt zum Abrufen aller Kurse.
-    """
-    courses = db.query(Course).all()
-    return [{"id": course.id, "title": course.title, "description": course.description} for course in courses]
-
-@app.get("/api/courses/{course_id}")
-def get_course(course_id: int, db: Session = Depends(get_db)) -> dict:
-    """
-    Endpunkt zum Abrufen der Details eines einzelnen Kurses.
-    """
-    course = db.query(Course).filter(Course.id == course_id).first()
-    if not course:
-        raise HTTPException(status_code=404, detail="Kurs nicht gefunden")
-    return {"id": course.id, "title": course.title, "description": course.description}
 
 @app.get("/api/learning-paths")
 def get_learning_paths(db: Session = Depends(get_db)) -> list:
-    """
-    Endpunkt zum Abrufen aller Lernpfade inklusive der enthaltenen Kurse.
-    """
     learning_paths = db.query(LearningPath).all()
     result = []
     for lp in learning_paths:
         result.append({
             "id": lp.id,
             "name": lp.name,
-            "courses": [{"id": course.id, "title": course.title, "description": course.description} for course in lp.courses]
+            "courses": [{"id": course.id, "title": course.title, "short_description": course.short_description} for course in lp.courses]
         })
     return result
 
 @app.get("/api/stats")
 def get_stats(db: Session = Depends(get_db)) -> list:
-    """
-    Endpunkt zum Abrufen der Nutzungsstatistiken (Lernminuten pro Tag) der letzten 7 Tage.
-    """
     stats = db.query(UserStatistic).order_by(UserStatistic.date).all()
     result = [{"date": stat.date.isoformat(), "minutes": stat.minutes} for stat in stats]
     return result
 
 @app.get("/api/settings")
 def get_settings(db: Session = Depends(get_db)) -> dict:
-    """
-    Endpunkt zum Abrufen der Benutzereinstellungen (tägliches Lernziel).
-    """
     setting = db.query(UserSetting).first()
     if not setting:
         raise HTTPException(status_code=404, detail="Einstellung nicht gefunden")
@@ -144,10 +120,6 @@ def get_settings(db: Session = Depends(get_db)) -> dict:
 
 @app.put("/api/settings")
 def update_settings(new_setting: dict, db: Session = Depends(get_db)) -> dict:
-    """
-    Endpunkt zum Aktualisieren des täglichen Lernziels.
-    Erwartet ein JSON-Objekt mit dem Schlüssel 'daily_target'.
-    """
     setting = db.query(UserSetting).first()
     if not setting:
         raise HTTPException(status_code=404, detail="Einstellung nicht gefunden")
@@ -161,9 +133,6 @@ def update_settings(new_setting: dict, db: Session = Depends(get_db)) -> dict:
 
 @app.get("/api/comments/{course_id}")
 def get_comments(course_id: int, db: Session = Depends(get_db)) -> list:
-    """
-    Endpunkt zum Abrufen aller Kommentare eines Kurses.
-    """
     comments = db.query(Comment).filter(Comment.course_id == course_id).order_by(Comment.timestamp).all()
     return [
         {
@@ -177,10 +146,6 @@ def get_comments(course_id: int, db: Session = Depends(get_db)) -> list:
 
 @app.post("/api/comments/{course_id}")
 def post_comment(course_id: int, new_comment: dict, db: Session = Depends(get_db)) -> dict:
-    """
-    Endpunkt zum Erstellen eines neuen Kommentars für einen Kurs.
-    Erwartet ein JSON-Objekt mit dem Schlüssel 'content'.
-    """
     course = db.query(Course).filter(Course.id == course_id).first()
     if not course:
         raise HTTPException(status_code=404, detail="Kurs nicht gefunden")
@@ -197,6 +162,9 @@ def post_comment(course_id: int, new_comment: dict, db: Session = Depends(get_db
         "content": comment.content,
         "timestamp": comment.timestamp.isoformat()
     }
+
+from routes import courses
+app.include_router(courses.router)
 
 if __name__ == "__main__":
     import uvicorn
