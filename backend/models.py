@@ -1,10 +1,9 @@
-# backend/models.py
 from sqlalchemy import Column, Integer, String, Table, ForeignKey, Date, DateTime
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from datetime import datetime
 from database import Base
 
-# Assoziationstabelle für die m:n-Beziehung zwischen Lernpfaden und Kursen
+# Association table for many-to-many relationship between learning paths and courses
 learningpath_course_association = Table(
     "learningpath_course",
     Base.metadata,
@@ -17,8 +16,7 @@ class Course(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, unique=True, index=True)
     short_description = Column(String)
-    course_content = Column(String)  # neuer Name statt "detailed_description"
-    # Beziehung zu Kommentaren
+    course_content = Column(String)  # renamed from detailed_description
     comments = relationship("Comment", back_populates="course", cascade="all, delete")
 
 class LearningPath(Base):
@@ -33,15 +31,24 @@ class UserStatistic(Base):
     date = Column(Date, unique=True, index=True)
     minutes = Column(Integer)
 
-class UserSetting(Base):
-    __tablename__ = "user_settings"
-    id = Column(Integer, primary_key=True, index=True)
-    daily_target = Column(Integer, default=60)
-
 class Comment(Base):
     __tablename__ = "comments"
     id = Column(Integer, primary_key=True, index=True)
     course_id = Column(Integer, ForeignKey("courses.id"), nullable=False)
     content = Column(String)
     timestamp = Column(DateTime, default=datetime.utcnow)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    parent_id = Column(Integer, ForeignKey("comments.id"), nullable=True)
+    replies = relationship("Comment", backref=backref("parent", remote_side=[id]))
     course = relationship("Course", back_populates="comments")
+    user = relationship("User")
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=True)
+    phone = Column(String, unique=True, index=True, nullable=True)
+    password_hash = Column(String)
+    role = Column(String, default="User")  # Possible roles: "User", "Teacher", "Admin"
+    daily_target = Column(Integer, default=60)  # Individual daily learning goal

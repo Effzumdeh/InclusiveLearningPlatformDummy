@@ -15,7 +15,7 @@
 
       <div class="button-group">
         <button type="button" @click="saveCourse(false)">Kurs speichern</button>
-        <button type="button" @click="saveCourse(true)">Didaktische Prüfung</button>
+        <button type="button" @click="simulateDidactic()">Didaktische Prüfung</button>
       </div>
     </form>
 
@@ -55,6 +55,7 @@ import { ref, onMounted, watch } from "vue";
 import { useCourseEditorStore } from "../store/courseEditor";
 import CoursePreview from "../components/CoursePreview.vue";
 import FeedbackDisplay from "../components/FeedbackDisplay.vue";
+import { useRouter } from "vue-router";
 import Quill from "quill";
 import "quill/dist/quill.snow.css";
 
@@ -67,12 +68,17 @@ export default {
   setup() {
     const store = useCourseEditorStore();
     store.loadFromLocal();
-
+    const router = useRouter();
     const quillEditor = ref(null);
     let quillInstance = null;
     const errorMessage = ref("");
     const feedback = ref(null);
     const courses = ref([]);
+    const originalState = ref({
+      title: "",
+      shortDescription: "",
+      courseContent: "",
+    });
 
     const fetchCourses = async () => {
       try {
@@ -100,6 +106,11 @@ export default {
         store.saveToLocal();
       });
       fetchCourses();
+      originalState.value = {
+        title: store.title,
+        shortDescription: store.shortDescription,
+        courseContent: store.courseContent,
+      };
     });
 
     watch(() => store.title, store.saveToLocal);
@@ -116,44 +127,50 @@ export default {
         errorMessage.value = "Bitte füllen Sie alle Pflichtfelder aus.";
         return;
       }
-      const payload = {
-        title: store.title,
-        short_description: store.shortDescription,
-        course_content: store.courseContent,
-        didactic_simulation: simulate,
-      };
-
-      try {
-        let response;
-        if (store.editingCourseId) {
-          response = await fetch(`http://127.0.0.1:8000/api/courses/${store.editingCourseId}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-        } else {
-          response = await fetch("http://127.0.0.1:8000/api/courses", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-        }
-        const result = await response.json();
-        if (!response.ok) {
-          errorMessage.value = result.detail || "Fehler beim Speichern des Kurses.";
-        } else {
-          if (simulate) {
-            feedback.value = result.didactic_feedback;
+      if (!simulate) {
+        const payload = {
+          title: store.title,
+          short_description: store.shortDescription,
+          course_content: store.courseContent,
+          didactic_simulation: false,
+        };
+        try {
+          let response;
+          if (store.editingCourseId) {
+            response = await fetch(`http://127.0.0.1:8000/api/courses/${store.editingCourseId}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+          } else {
+            response = await fetch("http://127.0.0.1:8000/api/courses", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+          }
+          const result = await response.json();
+          if (!response.ok) {
+            errorMessage.value = result.detail || "Fehler beim Speichern des Kurses.";
           } else {
             feedback.value = null;
+            store.reset();
+            quillInstance.root.innerHTML = "";
+            fetchCourses();
+            originalState.value = { title: "", shortDescription: "", courseContent: "" };
           }
-          store.reset();
-          quillInstance.root.innerHTML = "";
-          fetchCourses();
+        } catch (error) {
+          errorMessage.value = "Fehler beim Speichern des Kurses.";
         }
-      } catch (error) {
-        errorMessage.value = "Fehler beim Speichern des Kurses.";
       }
+    };
+
+    const simulateDidactic = () => {
+      feedback.value = {
+        UDL: "Die Inhalte sollten in alternativen Formaten vorliegen.",
+        LearningFirstPrinciples: "Die Grundlagen sollten stärker strukturiert sein.",
+        ARCS: "Mehr interaktive Elemente zur Steigerung der Aufmerksamkeit einfügen.",
+      };
     };
 
     const editCourse = async (course) => {
@@ -165,6 +182,11 @@ export default {
         store.courseContent = data.course_content;
         quillInstance.root.innerHTML = data.course_content;
         store.editingCourseId = course.id;
+        originalState.value = {
+          title: store.title,
+          shortDescription: store.shortDescription,
+          courseContent: store.courseContent,
+        };
       } catch (error) {
         console.error("Fehler beim Laden des Kurses:", error);
       }
@@ -186,16 +208,26 @@ export default {
       }
     };
 
+    const unsavedChangesExist = () => {
+      return (
+        store.title !== originalState.value.title ||
+        store.shortDescription !== originalState.value.shortDescription ||
+        store.courseContent !== originalState.value.courseContent
+      );
+    };
+
     return {
       store,
       quillEditor,
       errorMessage,
       saveCourse,
+      simulateDidactic,
       feedback,
       updateStore,
       courses,
       editCourse,
       deleteCourse,
+      unsavedChangesExist,
     };
   },
 };

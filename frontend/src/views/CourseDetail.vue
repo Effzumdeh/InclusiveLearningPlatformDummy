@@ -4,14 +4,26 @@
     <h2>{{ course.title }}</h2>
     <p>{{ course.short_description }}</p>
     <div class="course-content" v-html="course.course_content"></div>
+    <!-- Comments Section -->
     <div class="comments-section">
       <h3>Kommentare</h3>
       <ul class="comment-list">
         <li v-for="comment in comments" :key="comment.id">
           <div class="comment-header">
             <span class="comment-timestamp">{{ formatTimestamp(comment.timestamp) }}</span>
+            <span class="comment-author">von {{ comment.username }}</span>
           </div>
           <div class="comment-content">{{ comment.content }}</div>
+          <!-- Display replies (threaded) if any -->
+          <ul class="replies" v-if="comment.replies && comment.replies.length">
+            <li v-for="reply in comment.replies" :key="reply.id">
+              <div class="comment-header">
+                <span class="comment-timestamp">{{ formatTimestamp(reply.timestamp) }}</span>
+                <span class="comment-author">von {{ reply.username }}</span>
+              </div>
+              <div class="comment-content">{{ reply.content }}</div>
+            </li>
+          </ul>
         </li>
       </ul>
       <div class="comment-input">
@@ -25,12 +37,14 @@
 <script>
 import { ref, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { useAuthStore } from "../store/auth";
 
 export default {
   name: "CourseDetail",
   setup() {
     const route = useRoute();
     const router = useRouter();
+    const authStore = useAuthStore();
     const courseId = route.params.courseId;
     const course = ref({});
     const comments = ref([]);
@@ -59,9 +73,16 @@ export default {
       try {
         const response = await fetch(`http://127.0.0.1:8000/api/comments/${courseId}`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: newComment.value }),
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + authStore.token
+          },
+          body: JSON.stringify({ content: newComment.value })
         });
+        // If the request was not successful, throw error.
+        if (!response.ok) {
+          throw new Error("Kommentar konnte nicht gepostet werden.");
+        }
         const postedComment = await response.json();
         comments.value.push(postedComment);
         newComment.value = "";
@@ -75,7 +96,9 @@ export default {
     };
 
     const formatTimestamp = (timestamp) => {
-      return new Date(timestamp).toLocaleString();
+      const dt = new Date(timestamp);
+      // If dt is invalid, return an empty string
+      return isNaN(dt.getTime()) ? "" : dt.toLocaleString();
     };
 
     onMounted(() => {
@@ -90,6 +113,7 @@ export default {
       postComment,
       goBack,
       formatTimestamp,
+      authStore,
     };
   },
 };
@@ -120,7 +144,7 @@ export default {
 }
 .comment-list {
   list-style: none;
-  padding: 0;
+  padding-left: 0;
 }
 .comment-list li {
   margin-bottom: 1rem;
@@ -131,6 +155,11 @@ export default {
   font-size: 0.8rem;
   color: #555;
   margin-bottom: 0.25rem;
+  display: flex;
+  gap: 0.5rem;
+}
+.comment-author {
+  font-weight: bold;
 }
 .comment-input {
   display: flex;
@@ -150,5 +179,11 @@ export default {
   border: none;
   border-radius: 4px;
   cursor: pointer;
+}
+.replies {
+  list-style: none;
+  margin-left: 1rem;
+  padding-left: 0.5rem;
+  border-left: 1px solid #004c97;
 }
 </style>

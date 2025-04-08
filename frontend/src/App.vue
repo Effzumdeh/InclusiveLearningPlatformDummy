@@ -1,54 +1,67 @@
 <template>
   <div class="app">
     <header>
+      <div class="header-buttons" v-if="authStore.token">
+        <button class="header-button" @click="logout">Abmelden 🚪</button>
+        <button v-if="route.name !== 'Home'" class="header-button" @click="goHome">Zur Hauptseite 🏠</button>
+      </div>
       <h1>Willkommen auf der Lernplattform</h1>
     </header>
-    <div class="next-meeting-box">
-      <div class="meeting-text">
-        Dein nächster Kurstermin findet statt am: {{ meetingStartFull }} – {{ meetingEndFull }}
-        <br />
-        Thema: Digitale Diversität
-      </div>
-      <button
-        class="meeting-button"
-        :disabled="!meetingActive"
-        @click="handleMeetingClick"
-      >
-        Jetzt der Videokonferenz beitreten <span class="meeting-emojis">📹👥</span>
-      </button>
-    </div>
-    <router-view />
-    <div class="chat-overlay">
-      <button class="chat-btn" @click="toggleChat">?</button>
-      <div v-if="chatOpen" class="chat-window">
-        <div class="chat-header">
-          <img src="./assets/assistant.jpg" alt="Portrait von Steve" class="assistant-portrait" />
-          <span>Steve (KI-Assistent)</span>
-          <button class="close-btn" @click="toggleChat">&times;</button>
+    <!-- Next meeting banner and chat overlay are hidden on the Login page -->
+    <div v-if="!isLoginPage">
+      <div class="next-meeting-box">
+        <div class="meeting-text">
+          Dein nächster Kurstermin findet statt am: {{ meetingStartFull }} – {{ meetingEndFull }}<br />
+          Thema: Digitale Diversität
         </div>
-        <div class="chat-body">
-          <div v-for="msg in chatMessages" :key="msg.timestamp" class="chat-message">
-            <span class="timestamp">{{ msg.timestamp }}</span> - {{ msg.text }}
+        <button class="meeting-button" :disabled="!meetingActive" @click="handleMeetingClick">
+          Jetzt der Videokonferenz beitreten <span class="meeting-emojis">📹👥</span>
+        </button>
+      </div>
+      <div class="chat-overlay">
+        <button class="chat-btn" @click="toggleChat">?</button>
+        <div v-if="chatOpen" class="chat-window">
+          <div class="chat-header">
+            <img src="./assets/assistant.jpg" alt="Portrait von Steve" class="assistant-portrait" />
+            <span>Steve (KI-Assistent)</span>
+            <button class="close-btn" @click="toggleChat">&times;</button>
+          </div>
+          <div class="chat-body">
+            <div v-for="msg in chatMessages" :key="msg.timestamp" class="chat-message">
+              <span class="timestamp">{{ msg.timestamp }}</span> - {{ msg.text }}
+            </div>
+          </div>
+          <div class="chat-footer">
+            <input type="text" placeholder="Nachricht eingeben..." v-model="chatInput" @keyup.enter="sendMessage" />
+            <button class="mic-btn" @click="toggleSpeechRecognition">
+              <span v-if="isListening">🛑</span>
+              <span v-else>🎤</span>
+            </button>
+            <button @click="sendMessage">Senden</button>
           </div>
         </div>
-        <div class="chat-footer">
-          <input type="text" placeholder="Nachricht eingeben..." v-model="chatInput" @keyup.enter="sendMessage" />
-          <button class="mic-btn" @click="toggleSpeechRecognition">
-            <span v-if="isListening">🛑</span>
-            <span v-else>🎤</span>
-          </button>
-          <button @click="sendMessage">Senden</button>
-        </div>
       </div>
     </div>
+    <router-view />
   </div>
 </template>
 
 <script>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
+import { useAuthStore } from "./store/auth";
+import { useRouter, useRoute } from "vue-router";
 export default {
   name: "App",
   setup() {
+    const authStore = useAuthStore();
+    authStore.loadStoredAuth();
+    const router = useRouter();
+    const route = useRoute();
+
+    // Determine if the current route is the Login/Register page.
+    const isLoginPage = computed(() => route.name === "LoginRegister");
+
+    // Chat functionality
     const chatOpen = ref(false);
     const chatInput = ref("");
     const chatMessages = ref([]);
@@ -76,26 +89,23 @@ export default {
       chatMessages.value.push({ text, timestamp });
     };
 
+    // Meeting functionality
     const meetingStartTime = ref(new Date(Date.now() + 2 * 60 * 1000));
     const meetingEndTime = ref(new Date(meetingStartTime.value.getTime() + 60 * 60 * 1000));
-
     const getDayLabel = (dateObj) => {
       const today = new Date();
-      today.setHours(0,0,0,0);
+      today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
       const dayAfter = new Date(today);
       dayAfter.setDate(dayAfter.getDate() + 2);
-
       const compare = new Date(dateObj);
-      compare.setHours(0,0,0,0);
-
-      if(compare.getTime() === today.getTime()) return "(heute)";
-      if(compare.getTime() === tomorrow.getTime()) return "(morgen)";
-      if(compare.getTime() === dayAfter.getTime()) return "(übermorgen)";
+      compare.setHours(0, 0, 0, 0);
+      if (compare.getTime() === today.getTime()) return "(heute)";
+      if (compare.getTime() === tomorrow.getTime()) return "(morgen)";
+      if (compare.getTime() === dayAfter.getTime()) return "(übermorgen)";
       return "";
     };
-
     const meetingStartFull = computed(() => {
       const datePart = meetingStartTime.value.toLocaleDateString([], { day: "numeric", month: "long", year: "numeric" });
       const timePart = meetingStartTime.value.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -106,12 +116,10 @@ export default {
       const timePart = meetingEndTime.value.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
       return `${datePart} ${timePart}`;
     });
-
     const meetingActive = ref(false);
     setInterval(() => {
       meetingActive.value = new Date() >= meetingStartTime.value;
     }, 1000);
-
     const handleMeetingClick = () => {
       if (!meetingActive.value) {
         alert("Der Kurs hat noch nicht begonnen.");
@@ -120,6 +128,16 @@ export default {
       }
     };
 
+    // Header actions
+    const logout = () => {
+      authStore.logout();
+      router.push({ name: "LoginRegister" });
+    };
+    const goHome = () => {
+      router.push({ name: "Home" });
+    };
+
+    // Speech recognition
     const isListening = ref(false);
     let recognition = null;
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -137,7 +155,6 @@ export default {
         isListening.value = false;
       };
     }
-
     const toggleSpeechRecognition = () => {
       if (!recognition) {
         alert("Spracherkennung wird von diesem Browser nicht unterstützt.");
@@ -153,6 +170,10 @@ export default {
     };
 
     return {
+      authStore,
+      router,
+      route,
+      isLoginPage,
       chatOpen,
       chatInput,
       chatMessages,
@@ -164,6 +185,8 @@ export default {
       handleMeetingClick,
       isListening,
       toggleSpeechRecognition,
+      logout,
+      goHome,
     };
   },
 };
@@ -182,6 +205,22 @@ header {
   padding: 1rem;
   color: #ffffff;
   text-align: center;
+  position: relative;
+}
+.header-buttons {
+  position: absolute;
+  left: 1rem;
+  top: 1rem;
+  display: flex;
+  gap: 0.5rem;
+}
+.header-buttons button {
+  background-color: #007700;
+  border: none;
+  color: white;
+  padding: 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
 }
 .next-meeting-box {
   display: flex;
@@ -236,7 +275,7 @@ header {
   position: fixed;
   bottom: 90px;
   right: 1rem;
-  width: 300px;
+  width: 360px;
   background: #ffffff;
   border: 1px solid #004c97;
   box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.2);
