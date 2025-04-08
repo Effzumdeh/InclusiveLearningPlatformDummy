@@ -8,9 +8,10 @@
     "build": "vue-cli-service build"
   },
   "dependencies": {
-    "vue": "^3.2.0",
     "chart.js": "^3.9.1",
-    "chartjs-plugin-annotation": "^1.2.1"
+    "chartjs-plugin-annotation": "^1.2.1",
+    "vue": "^3.2.0",
+    "vue-router": "^4.5.0"
   },
   "devDependencies": {
     "@vue/cli-service": "^5.0.0"
