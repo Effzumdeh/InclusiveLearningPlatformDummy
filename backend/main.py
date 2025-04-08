@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from datetime import date, timedelta
 from database import engine, SessionLocal, Base
-from models import Course, LearningPath, UserStatistic, UserSetting
+from models import Course, LearningPath, UserStatistic, UserSetting, Comment
 
 # Erstelle alle Datenbanktabellen, falls sie noch nicht existieren
 Base.metadata.create_all(bind=engine)
@@ -22,7 +22,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Erlaube CORS-Anfragen vom Frontend (Standardmäßig auf http://localhost:8080)
+# Erlaube CORS-Anfragen vom Frontend
 origins = [
     "http://localhost",
     "http://localhost:8080",
@@ -57,7 +57,7 @@ def startup_event() -> None:
     db: Session = SessionLocal()
     # Demo-Kurse generieren
     if db.query(Course).first() is None:
-        course1 = Course(title="Einführung in Python", description="Grundlagen der Programmiersprache Python.")
+        course1 = Course(title="Digitale Diversität", description="Platzhalterinhalte zur digitalen Diversität. Inhalt folgt bald.")
         course2 = Course(title="Fortgeschrittene Python-Techniken", description="Vertiefung in fortgeschrittene Python-Konzepte.")
         course3 = Course(title="Datenbanken und SQL", description="Einführung in relationale Datenbanken und SQL.")
         db.add_all([course1, course2, course3])
@@ -96,7 +96,17 @@ def get_courses(db: Session = Depends(get_db)) -> list:
     Endpunkt zum Abrufen aller Kurse.
     """
     courses = db.query(Course).all()
-    return courses
+    return [{"id": course.id, "title": course.title, "description": course.description} for course in courses]
+
+@app.get("/api/courses/{course_id}")
+def get_course(course_id: int, db: Session = Depends(get_db)) -> dict:
+    """
+    Endpunkt zum Abrufen der Details eines einzelnen Kurses.
+    """
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Kurs nicht gefunden")
+    return {"id": course.id, "title": course.title, "description": course.description}
 
 @app.get("/api/learning-paths")
 def get_learning_paths(db: Session = Depends(get_db)) -> list:
@@ -148,6 +158,45 @@ def update_settings(new_setting: dict, db: Session = Depends(get_db)) -> dict:
     setting.daily_target = new_target
     db.commit()
     return {"daily_target": setting.daily_target}
+
+@app.get("/api/comments/{course_id}")
+def get_comments(course_id: int, db: Session = Depends(get_db)) -> list:
+    """
+    Endpunkt zum Abrufen aller Kommentare eines Kurses.
+    """
+    comments = db.query(Comment).filter(Comment.course_id == course_id).order_by(Comment.timestamp).all()
+    return [
+        {
+            "id": comment.id,
+            "course_id": comment.course_id,
+            "content": comment.content,
+            "timestamp": comment.timestamp.isoformat()
+        }
+        for comment in comments
+    ]
+
+@app.post("/api/comments/{course_id}")
+def post_comment(course_id: int, new_comment: dict, db: Session = Depends(get_db)) -> dict:
+    """
+    Endpunkt zum Erstellen eines neuen Kommentars für einen Kurs.
+    Erwartet ein JSON-Objekt mit dem Schlüssel 'content'.
+    """
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Kurs nicht gefunden")
+    content = new_comment.get("content")
+    if not content:
+        raise HTTPException(status_code=400, detail="Kommentarinhalt darf nicht leer sein")
+    comment = Comment(course_id=course_id, content=content)
+    db.add(comment)
+    db.commit()
+    db.refresh(comment)
+    return {
+        "id": comment.id,
+        "course_id": comment.course_id,
+        "content": comment.content,
+        "timestamp": comment.timestamp.isoformat()
+    }
 
 if __name__ == "__main__":
     import uvicorn
