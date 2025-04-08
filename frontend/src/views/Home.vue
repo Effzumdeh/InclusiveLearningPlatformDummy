@@ -22,16 +22,22 @@
         <canvas id="statsChart"></canvas>
       </div>
     </section>
+    <div class="dashboard-links" v-if="authStore.user">
+      <router-link v-if="authStore.user.role === 'Teacher' || authStore.user.role === 'Admin'" to="/editor">
+        Kurseditor
+      </router-link>
+      <router-link v-if="authStore.user.role === 'Admin'" to="/dashboard/admin">
+        Admin Panel
+      </router-link>
+    </div>
   </main>
-  <footer class="editor-link">
-    <router-link to="/editor">Für Kursleiter:innen</router-link>
-  </footer>
 </template>
 
 <script>
 import { onMounted, ref } from "vue";
 import { Chart, registerables } from "chart.js";
 import annotationPlugin from "chartjs-plugin-annotation";
+import { useAuthStore } from "../store/auth";
 Chart.register(...registerables, annotationPlugin);
 
 export default {
@@ -43,6 +49,7 @@ export default {
     const dailyTarget = ref(60);
     const dailyTargetInput = ref(60);
     let statsChart = null;
+    const authStore = useAuthStore();
 
     const fetchData = async () => {
       try {
@@ -52,7 +59,9 @@ export default {
         learningPaths.value = await lpResponse.json();
         const statsResponse = await fetch("http://127.0.0.1:8000/api/stats");
         stats.value = await statsResponse.json();
-        const settingsResponse = await fetch("http://127.0.0.1:8000/api/settings");
+        const settingsResponse = await fetch("http://127.0.0.1:8000/api/user/settings", {
+          headers: { Authorization: "Bearer " + authStore.token }
+        });
         const settingsData = await settingsResponse.json();
         dailyTarget.value = settingsData.daily_target;
         dailyTargetInput.value = settingsData.daily_target;
@@ -66,7 +75,6 @@ export default {
       const ctx = document.getElementById("statsChart").getContext("2d");
       const labels = stats.value.map((item) => item.date);
       const data = stats.value.map((item) => item.minutes);
-
       const backgroundColors = data.map((minutes) =>
         minutes >= dailyTarget.value ? "#ffb368" : "rgba(0, 76, 151, 0.5)"
       );
@@ -131,10 +139,11 @@ export default {
 
     const saveDailyTarget = async () => {
       try {
-        await fetch("http://127.0.0.1:8000/api/settings", {
+        await fetch("http://127.0.0.1:8000/api/user/settings", {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
+            Authorization: "Bearer " + authStore.token
           },
           body: JSON.stringify({ daily_target: dailyTargetInput.value }),
         });
@@ -148,13 +157,13 @@ export default {
     onMounted(() => {
       fetchData();
     });
-
     return {
       courses,
       learningPaths,
       dailyTarget,
       dailyTargetInput,
       saveDailyTarget,
+      authStore,
     };
   },
 };
@@ -216,17 +225,16 @@ export default {
   border-radius: 4px;
   cursor: pointer;
 }
-footer.editor-link {
+.dashboard-links {
+  margin-top: 2rem;
   text-align: center;
-  margin: 2rem 0;
-  font-size: 1.2rem;
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
 }
-footer.editor-link a {
+.dashboard-links a {
   text-decoration: none;
   color: #004c97;
-}
-a {
-  text-decoration: none;
-  color: inherit;
+  font-weight: bold;
 }
 </style>
