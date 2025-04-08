@@ -6,7 +6,7 @@
         <li v-for="course in courses" :key="course.id">
           <router-link :to="`/course/${course.id}`">
             <h3>{{ course.title }}</h3>
-            <p>{{ course.description }}</p>
+            <p>{{ course.short_description }}</p>
           </router-link>
         </li>
       </ul>
@@ -23,6 +23,9 @@
       </div>
     </section>
   </main>
+  <footer class="editor-link">
+    <router-link to="/editor">Für Kursleiter:innen</router-link>
+  </footer>
 </template>
 
 <script>
@@ -186,22 +189,6 @@ export default {
   background-color: #ffffff;
   color: #004c97;
 }
-.learningpath-list {
-  list-style-type: none;
-  padding-left: 0;
-}
-.learningpath-list li {
-  margin-bottom: 1rem;
-  padding: 0.5rem;
-  border-bottom: 1px solid #004c97;
-}
-.course-list-inside {
-  list-style-type: none;
-  padding-left: 0;
-}
-.course-list-inside li {
-  margin-bottom: 0.5rem;
-}
 .stats-chart {
   margin-top: 2rem;
 }
@@ -228,6 +215,15 @@ export default {
   border: none;
   border-radius: 4px;
   cursor: pointer;
+}
+footer.editor-link {
+  text-align: center;
+  margin: 2rem 0;
+  font-size: 1.2rem;
+}
+footer.editor-link a {
+  text-decoration: none;
+  color: #004c97;
 }
 a {
   text-decoration: none;

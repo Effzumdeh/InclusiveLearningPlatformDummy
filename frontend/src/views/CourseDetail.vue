@@ -2,13 +2,8 @@
   <div class="course-detail">
     <button class="back-button" @click="goBack">Zurück</button>
     <h2>{{ course.title }}</h2>
-    <p>{{ course.description }}</p>
-    <!-- Platzhalterinhalte -->
-    <div class="placeholder-content">
-      <p>Hier folgen weitere Informationen und Inhalte zum Kurs.</p>
-      <p>Weitere Platzhaltertexte, die den Kurstext erweitern.</p>
-    </div>
-    <!-- Kommentarsektion -->
+    <p>{{ course.short_description }}</p>
+    <div class="course-content" v-html="course.course_content"></div>
     <div class="comments-section">
       <h3>Kommentare</h3>
       <ul class="comment-list">
@@ -113,7 +108,7 @@ export default {
   border-radius: 4px;
   cursor: pointer;
 }
-.placeholder-content {
+.course-content {
   margin: 2rem 0;
   padding: 1rem;
   border: 1px solid #004c97;

@@ -1,3 +1,4 @@
+# backend/models.py
 from sqlalchemy import Column, Integer, String, Table, ForeignKey, Date, DateTime
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -15,7 +16,8 @@ class Course(Base):
     __tablename__ = "courses"
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, unique=True, index=True)
-    description = Column(String)
+    short_description = Column(String)
+    course_content = Column(String)  # neuer Name statt "detailed_description"
     # Beziehung zu Kommentaren
     comments = relationship("Comment", back_populates="course", cascade="all, delete")
 
