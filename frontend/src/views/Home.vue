@@ -29,6 +29,9 @@
       <router-link v-if="authStore.user.role === 'Admin'" to="/dashboard/admin">
         Admin Panel
       </router-link>
+      <router-link to="/profile">
+        Mein Profil
+      </router-link>
     </div>
   </main>
 </template>

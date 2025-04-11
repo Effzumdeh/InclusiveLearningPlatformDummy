@@ -7,7 +7,7 @@
       </div>
       <h1>Willkommen auf der Lernplattform</h1>
     </header>
-    <!-- Next meeting banner and chat overlay are hidden on the Login page -->
+    <!-- Next meeting banner und Chat-Overlay werden auf der Login-Seite nicht angezeigt -->
     <div v-if="!isLoginPage">
       <div class="next-meeting-box">
         <div class="meeting-text">
@@ -43,25 +43,61 @@
       </div>
     </div>
     <router-view />
+    <TutorialOverlay v-if="tutorialActive" @finish="finishTutorial" />
+    <footer id="tutorial-footer">
+      <a href="#" @click.prevent="restartTutorial">Tutorial wiederholen</a>
+    </footer>
   </div>
 </template>
 
 <script>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { useAuthStore } from "./store/auth";
+import { useTutorialStore } from "./store/tutorial";
 import { useRouter, useRoute } from "vue-router";
+import TutorialOverlay from "./components/TutorialOverlay.vue";
+
 export default {
   name: "App",
+  components: { TutorialOverlay },
   setup() {
     const authStore = useAuthStore();
     authStore.loadStoredAuth();
     const router = useRouter();
     const route = useRoute();
+    const tutorialStore = useTutorialStore();
+    const tutorialActive = ref(false);
 
-    // Determine if the current route is the Login/Register page.
+    // Sobald sich der Routenname ändert, wird der TutorialStore für die aktuelle Seite (Route) aktualisiert.
+    watch(
+      () => route.name,
+      (newRoute) => {
+        tutorialStore.setRoute(newRoute);
+      },
+      { immediate: true }
+    );
+
+    onMounted(async () => {
+      try {
+        const response = await fetch("http://127.0.0.1:8000/api/user/tutorial-status", {
+          headers: { Authorization: "Bearer " + authStore.token }
+        });
+        const data = await response.json();
+        if (!data.completed) {
+          tutorialActive.value = true;
+          tutorialStore.startTutorial();
+        }
+      } catch (error) {
+        console.error("Error fetching tutorial status:", error);
+        // Fallback: Starte das Tutorial auch bei Fehlern
+        tutorialActive.value = true;
+        tutorialStore.startTutorial();
+      }
+    });
+
     const isLoginPage = computed(() => route.name === "LoginRegister");
 
-    // Chat functionality
+    // Chat-Funktionalität
     const chatOpen = ref(false);
     const chatInput = ref("");
     const chatMessages = ref([]);
@@ -89,7 +125,7 @@ export default {
       chatMessages.value.push({ text, timestamp });
     };
 
-    // Meeting functionality
+    // Meeting-Funktionalität
     const meetingStartTime = ref(new Date(Date.now() + 2 * 60 * 1000));
     const meetingEndTime = ref(new Date(meetingStartTime.value.getTime() + 60 * 60 * 1000));
     const getDayLabel = (dateObj) => {
@@ -128,7 +164,7 @@ export default {
       }
     };
 
-    // Header actions
+    // Header-Aktionen
     const logout = () => {
       authStore.logout();
       router.push({ name: "LoginRegister" });
@@ -137,7 +173,7 @@ export default {
       router.push({ name: "Home" });
     };
 
-    // Speech recognition
+    // Spracherkennung
     const isListening = ref(false);
     let recognition = null;
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -169,6 +205,27 @@ export default {
       }
     };
 
+    // Tutorial neu starten bzw. abschließen
+    const restartTutorial = () => {
+      tutorialActive.value = true;
+      tutorialStore.startTutorial();
+    };
+    const finishTutorial = async () => {
+      tutorialActive.value = false;
+      try {
+        await fetch("http://127.0.0.1:8000/api/user/tutorial-status", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + authStore.token
+          },
+          body: JSON.stringify({ completed: true })
+        });
+      } catch (error) {
+        console.error("Error setting tutorial status:", error);
+      }
+    };
+
     return {
       authStore,
       router,
@@ -187,18 +244,25 @@ export default {
       toggleSpeechRecognition,
       logout,
       goHome,
+      tutorialActive,
+      restartTutorial,
+      finishTutorial
     };
-  },
+  }
 };
 </script>
 
-<style scoped>
-.app {
-  font-family: Arial, sans-serif;
+<style>
+/* Globale Stile – die Schriftart "Luciole" wird verwendet */
+body {
+  font-family: 'Luciole', sans-serif;
   margin: 0;
   padding: 0;
-  color: #004c97;
   background-color: #ffffff;
+  color: #004c97;
+}
+.app {
+  font-family: inherit;
 }
 header {
   background-color: #004c97;
@@ -347,5 +411,23 @@ header {
   border: 1px solid #004c97;
   border-radius: 4px;
   cursor: pointer;
+}
+footer {
+  text-align: center;
+  padding: 1rem;
+  background-color: #f5f5f5;
+  border-top: 1px solid #004c97;
+}
+footer a {
+  color: #004c97;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Neuer Style für hervorgehobene Elemente im Tutorial */
+.tutorial-highlight {
+  box-shadow: 0 0 10px 5px yellow;
+  position: relative;
+  z-index: 1100;
 }
 </style>

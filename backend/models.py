@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Table, ForeignKey, Date, DateTime
+from sqlalchemy import Column, Integer, String, Table, ForeignKey, Date, DateTime, Boolean
 from sqlalchemy.orm import relationship, backref
 from datetime import datetime
 from database import Base
@@ -18,6 +18,7 @@ class Course(Base):
     short_description = Column(String)
     course_content = Column(String)  # renamed from detailed_description
     comments = relationship("Comment", back_populates="course", cascade="all, delete")
+    quiz_questions = relationship("QuizQuestion", back_populates="course", cascade="all, delete")
 
 class LearningPath(Base):
     __tablename__ = "learning_paths"
@@ -52,3 +53,44 @@ class User(Base):
     password_hash = Column(String)
     role = Column(String, default="User")  # Possible roles: "User", "Teacher", "Admin"
     daily_target = Column(Integer, default=60)  # Individual daily learning goal
+    points = Column(Integer, default=0)  # Points earned by quiz responses
+    full_name = Column(String, nullable=True)
+    age = Column(Integer, default=0)  # Wird aus birth_date berechnet
+    birth_date = Column(Date, nullable=True)
+    short_description = Column(String, nullable=True)  # For user profile description
+    profile_picture = Column(String, nullable=True)  # Path to profile picture
+    # Privacy settings – geben an, ob die entsprechenden Angaben öffentlich angezeigt werden sollen
+    is_full_name_public = Column(Boolean, default=True)
+    is_age_public = Column(Boolean, default=True)
+    is_description_public = Column(Boolean, default=True)
+    is_profile_picture_public = Column(Boolean, default=True)
+
+class TutorialStatus(Base):
+    __tablename__ = "tutorial_statuses"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True)
+    completed = Column(Boolean, default=False)
+    completed_at = Column(DateTime, nullable=True)
+    user = relationship("User", backref=backref("tutorial_status", uselist=False))
+
+class QuizQuestion(Base):
+    __tablename__ = "quiz_questions"
+    id = Column(Integer, primary_key=True, index=True)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=False)
+    question_text = Column(String, nullable=False)
+    option1 = Column(String, nullable=False)
+    option2 = Column(String, nullable=False)
+    option3 = Column(String, nullable=False)
+    option4 = Column(String, nullable=False)
+    correct_option = Column(Integer, nullable=False)  # 1-4
+    course = relationship("Course", back_populates="quiz_questions")
+
+class QuizResponse(Base):
+    __tablename__ = "quiz_responses"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    question_id = Column(Integer, ForeignKey("quiz_questions.id"), nullable=False)
+    is_correct = Column(Boolean, default=False)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    user = relationship("User", backref="quiz_responses")
+    question = relationship("QuizQuestion", backref="responses")

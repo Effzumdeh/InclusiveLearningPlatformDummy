@@ -4,6 +4,8 @@
     <h2>{{ course.title }}</h2>
     <p>{{ course.short_description }}</p>
     <div class="course-content" v-html="course.course_content"></div>
+    <!-- Quiz Component wird erst angezeigt, wenn course.id vorhanden ist -->
+    <QuizComponent v-if="course && course.id" :courseId="course.id" />
     <!-- Comments Section -->
     <div class="comments-section">
       <h3>Kommentare</h3>
@@ -11,7 +13,9 @@
         <li v-for="comment in comments" :key="comment.id">
           <div class="comment-header">
             <span class="comment-timestamp">{{ formatTimestamp(comment.timestamp) }}</span>
-            <span class="comment-author">von {{ comment.username }}</span>
+            <router-link :to="{ name: 'ProfileView', params: { user_id: comment.user_id } }" class="comment-author">
+              {{ comment.username }}
+            </router-link>
           </div>
           <div class="comment-content">{{ comment.content }}</div>
           <!-- Display replies (threaded) if any -->
@@ -19,7 +23,9 @@
             <li v-for="reply in comment.replies" :key="reply.id">
               <div class="comment-header">
                 <span class="comment-timestamp">{{ formatTimestamp(reply.timestamp) }}</span>
-                <span class="comment-author">von {{ reply.username }}</span>
+                <router-link :to="{ name: 'ProfileView', params: { user_id: reply.user_id } }" class="comment-author">
+                  {{ reply.username }}
+                </router-link>
               </div>
               <div class="comment-content">{{ reply.content }}</div>
             </li>
@@ -38,9 +44,10 @@
 import { ref, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useAuthStore } from "../store/auth";
-
+import QuizComponent from "../components/QuizComponent.vue";
 export default {
   name: "CourseDetail",
+  components: { QuizComponent },
   setup() {
     const route = useRoute();
     const router = useRouter();
@@ -79,7 +86,6 @@ export default {
           },
           body: JSON.stringify({ content: newComment.value })
         });
-        // If the request was not successful, throw error.
         if (!response.ok) {
           throw new Error("Kommentar konnte nicht gepostet werden.");
         }
@@ -97,7 +103,6 @@ export default {
 
     const formatTimestamp = (timestamp) => {
       const dt = new Date(timestamp);
-      // If dt is invalid, return an empty string
       return isNaN(dt.getTime()) ? "" : dt.toLocaleString();
     };
 
@@ -160,6 +165,8 @@ export default {
 }
 .comment-author {
   font-weight: bold;
+  color: #004c97;
+  text-decoration: none;
 }
 .comment-input {
   display: flex;

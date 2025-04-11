@@ -6,6 +6,8 @@ import LoginRegister from "../views/LoginRegister.vue";
 import UserDashboard from "../views/UserDashboard.vue";
 import TeacherDashboard from "../views/TeacherDashboard.vue";
 import AdminDashboard from "../views/AdminDashboard.vue";
+import Profile from "../views/Profile.vue";
+import ProfileView from "../views/ProfileView.vue";
 
 const routes = [
   {
@@ -43,6 +45,16 @@ const routes = [
     name: "AdminDashboard",
     component: AdminDashboard,
   },
+  {
+    path: "/profile",
+    name: "Profile",
+    component: Profile,
+  },
+  {
+    path: "/profile/:user_id",
+    name: "ProfileView",
+    component: ProfileView,
+  }
 ];
 
 const router = createRouter({
