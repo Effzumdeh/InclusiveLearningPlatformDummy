@@ -47,6 +47,66 @@
         </tr>
       </tbody>
     </table>
+
+    <!-- Neuer Abschnitt: Quizfragenverwaltung -->
+    <h3>Quizfragen Verwaltung</h3>
+    <div v-if="store.editingCourseId">
+      <div class="quiz-form">
+        <label for="quizQuestion">Frage:</label>
+        <input id="quizQuestion" type="text" v-model="newQuizQuestion.question_text" />
+
+        <label for="option1">Option 1:</label>
+        <input id="option1" type="text" v-model="newQuizQuestion.option1" />
+
+        <label for="option2">Option 2:</label>
+        <input id="option2" type="text" v-model="newQuizQuestion.option2" />
+
+        <label for="option3">Option 3:</label>
+        <input id="option3" type="text" v-model="newQuizQuestion.option3" />
+
+        <label for="option4">Option 4:</label>
+        <input id="option4" type="text" v-model="newQuizQuestion.option4" />
+
+        <label for="correct_option">Korrekte Option (1-4):</label>
+        <input id="correct_option" type="number" min="1" max="4" v-model.number="newQuizQuestion.correct_option" />
+
+        <div class="button-group">
+          <button type="button" @click="addQuizQuestion" v-if="!newQuizQuestion.id">Quizfrage hinzufügen</button>
+          <button type="button" @click="updateQuizQuestion" v-else>Quizfrage aktualisieren</button>
+          <button type="button" @click="resetQuizForm">Formular zurücksetzen</button>
+        </div>
+      </div>
+      <div class="quiz-list">
+        <h4>Bestehende Quizfragen</h4>
+        <table>
+          <thead>
+            <tr>
+              <th>Frage</th>
+              <th>Option 1</th>
+              <th>Option 2</th>
+              <th>Option 3</th>
+              <th>Option 4</th>
+              <th>Korrekte Option</th>
+              <th>Aktionen</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="q in quizQuestions" :key="q.id">
+              <td>{{ q.question_text }}</td>
+              <td>{{ q.option1 }}</td>
+              <td>{{ q.option2 }}</td>
+              <td>{{ q.option3 }}</td>
+              <td>{{ q.option4 }}</td>
+              <td>{{ q.correct_option }}</td>
+              <td>
+                <button @click="editQuizQuestion(q)">Bearbeiten</button>
+                <button @click="deleteQuizQuestion(q.id)">Löschen</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -58,7 +118,6 @@ import FeedbackDisplay from "../components/FeedbackDisplay.vue";
 import { useRouter } from "vue-router";
 import Quill from "quill";
 import "quill/dist/quill.snow.css";
-
 export default {
   name: "CourseEditor",
   components: {
@@ -80,6 +139,17 @@ export default {
       courseContent: "",
     });
 
+    // Quizfragenverwaltung
+    const quizQuestions = ref([]);
+    const newQuizQuestion = ref({
+      question_text: "",
+      option1: "",
+      option2: "",
+      option3: "",
+      option4: "",
+      correct_option: 1
+    });
+
     const fetchCourses = async () => {
       try {
         const response = await fetch("http://127.0.0.1:8000/api/courses");
@@ -87,6 +157,93 @@ export default {
       } catch (error) {
         console.error("Fehler beim Abrufen der Kurse:", error);
       }
+    };
+
+    const fetchQuizQuestions = async () => {
+      if (store.editingCourseId) {
+        try {
+          const response = await fetch(`http://127.0.0.1:8000/api/courses/${store.editingCourseId}/quiz-questions/all`, {
+            headers: {
+              Authorization: "Bearer " + localStorage.getItem("token")
+            }
+          });
+          quizQuestions.value = await response.json();
+        } catch (error) {
+          console.error("Fehler beim Laden der Quizfragen:", error);
+        }
+      }
+    };
+
+    const addQuizQuestion = async () => {
+      if (!store.editingCourseId) return;
+      try {
+        const response = await fetch(`http://127.0.0.1:8000/api/courses/${store.editingCourseId}/quiz-questions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + localStorage.getItem("token")
+          },
+          body: JSON.stringify(newQuizQuestion.value)
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          alert(result.detail || "Fehler beim Hinzufügen der Quizfrage.");
+        } else {
+          await fetchQuizQuestions();
+          resetQuizForm();
+        }
+      } catch (error) {
+        console.error("Fehler beim Hinzufügen der Quizfrage:", error);
+      }
+    };
+
+    const deleteQuizQuestion = async (questionId) => {
+      if (!confirm("Möchten Sie diese Quizfrage wirklich löschen?")) return;
+      try {
+        const response = await fetch(`http://127.0.0.1:8000/api/quiz-questions/${questionId}`, {
+          method: "DELETE",
+          headers: { Authorization: "Bearer " + localStorage.getItem("token") }
+        });
+        if (response.ok) {
+          await fetchQuizQuestions();
+        } else {
+          const errorData = await response.json();
+          alert(errorData.detail || "Fehler beim Löschen der Quizfrage.");
+        }
+      } catch (error) {
+        console.error("Fehler beim Löschen der Quizfrage:", error);
+      }
+    };
+
+    const editQuizQuestion = (question) => {
+      newQuizQuestion.value = { ...question };
+    };
+
+    const updateQuizQuestion = async () => {
+      if (!newQuizQuestion.value.id) return;
+      try {
+        const response = await fetch(`http://127.0.0.1:8000/api/quiz-questions/${newQuizQuestion.value.id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + localStorage.getItem("token")
+          },
+          body: JSON.stringify(newQuizQuestion.value)
+        });
+        if (response.ok) {
+          await fetchQuizQuestions();
+          resetQuizForm();
+        } else {
+          const errorData = await response.json();
+          alert(errorData.detail || "Fehler beim Aktualisieren der Quizfrage.");
+        }
+      } catch (error) {
+        console.error("Fehler beim Aktualisieren der Quizfrage:", error);
+      }
+    };
+
+    const resetQuizForm = () => {
+      newQuizQuestion.value = { question_text: "", option1: "", option2: "", option3: "", option4: "", correct_option: 1 };
     };
 
     onMounted(() => {
@@ -106,6 +263,7 @@ export default {
         store.saveToLocal();
       });
       fetchCourses();
+      fetchQuizQuestions();
       originalState.value = {
         title: store.title,
         shortDescription: store.shortDescription,
@@ -187,6 +345,8 @@ export default {
           shortDescription: store.shortDescription,
           courseContent: store.courseContent,
         };
+        // Wenn ein Kurs bearbeitet wird, die zugehörigen Quizfragen laden
+        fetchQuizQuestions();
       } catch (error) {
         console.error("Fehler beim Laden des Kurses:", error);
       }
@@ -228,6 +388,14 @@ export default {
       editCourse,
       deleteCourse,
       unsavedChangesExist,
+      // Quizfunktionen
+      quizQuestions,
+      newQuizQuestion,
+      addQuizQuestion,
+      deleteQuizQuestion,
+      editQuizQuestion,
+      updateQuizQuestion,
+      resetQuizForm,
     };
   },
 };
@@ -280,6 +448,37 @@ export default {
 }
 .courses-table th,
 .courses-table td {
+  border: 1px solid #004c97;
+  padding: 0.5rem;
+  text-align: left;
+}
+/* Quizfragenverwaltung */
+.quiz-form {
+  margin-top: 2rem;
+  padding: 1rem;
+  border: 1px solid #004c97;
+  border-radius: 4px;
+  background-color: #f9f9f9;
+}
+.quiz-form label {
+  margin-top: 0.5rem;
+}
+.quiz-form input {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #004c97;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+}
+.quiz-list {
+  margin-top: 1rem;
+}
+.quiz-list table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.quiz-list th,
+.quiz-list td {
   border: 1px solid #004c97;
   padding: 0.5rem;
   text-align: left;

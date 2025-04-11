@@ -3,3 +3,5 @@ frontend/package-lock.json
 /backend/__pycache__
 backend/learning_platform.db
 /backend/routes/__pycache__
+/frontend/src/assets/fonts
+/backend/uploads

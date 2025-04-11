@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from sqlalchemy import inspect, text
 from datetime import date, timedelta
@@ -8,6 +9,7 @@ from models import Course, LearningPath, UserStatistic, Comment, User
 from dependencies import get_db, get_current_user
 from auth_utils import get_password_hash
 
+# Erstelle alle Tabellen, falls sie noch nicht existieren.
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
@@ -15,6 +17,9 @@ app = FastAPI(
     description="Backend-API zur Unterstützung der Lernplattform.",
     version="1.0.0"
 )
+
+# Binde den Ordner "uploads" als statische Dateien ein, damit Profilbilder verfügbar sind.
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 origins = ["http://localhost", "http://localhost:8080"]
 
@@ -28,6 +33,9 @@ app.add_middleware(
 
 @app.on_event("startup")
 def startup_event() -> None:
+    # Stelle sicher, dass alle Tabellen existieren (falls die DB neu ist oder gelöscht wurde)
+    Base.metadata.create_all(bind=engine)
+    
     inspector = inspect(engine)
     # Migrate courses table: add missing columns if needed.
     if inspector.has_table("courses"):
@@ -124,6 +132,7 @@ def get_comments(course_id: int, db: Session = Depends(get_db)) -> list:
             "content": comment.content,
             "timestamp": comment.timestamp.isoformat(),
             "username": comment.user.username if comment.user else "",
+            "user_id": comment.user.id if comment.user else None,
             "parent_id": comment.parent_id,
             "replies": []
         }
@@ -163,15 +172,17 @@ def post_comment(course_id: int, new_comment: dict, db: Session = Depends(get_db
         "content": comment.content,
         "timestamp": comment.timestamp.isoformat(),
         "username": current_user.username,
+        "user_id": current_user.id,
         "parent_id": comment.parent_id,
         "replies": []
     }
 
-from routes import courses, auth, admin, user
+from routes import courses, auth, admin, user, quiz
 app.include_router(courses.router)
 app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(user.router)
+app.include_router(quiz.router)
 
 if __name__ == "__main__":
     import uvicorn
