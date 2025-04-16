@@ -12,7 +12,8 @@
       </ul>
     </aside>
     <section class="learning-paths">
-      <div class="stats-chart">
+      <!-- Lernstatistiken nur anzeigen, wenn in den Nutzereinstellungen aktiviert -->
+      <div class="stats-chart" v-if="authStore.user && authStore.user.show_stats">
         <h2>Nutzungsstatistiken (Lernminuten pro Tag)</h2>
         <div class="target-input">
           <label for="dailyTarget">Individuelles Tagesziel (Minuten):</label>

@@ -6,8 +6,8 @@
     <div class="course-content" v-html="course.course_content"></div>
     <!-- Quiz Component wird erst angezeigt, wenn course.id vorhanden ist -->
     <QuizComponent v-if="course && course.id" :courseId="course.id" />
-    <!-- Comments Section -->
-    <div class="comments-section">
+    <!-- Kommentare werden nur angezeigt, falls in den Nutzer-Einstellungen aktiviert -->
+    <div class="comments-section" v-if="authStore.user && authStore.user.show_comments">
       <h3>Kommentare</h3>
       <ul class="comment-list">
         <li v-for="comment in comments" :key="comment.id">
@@ -18,7 +18,7 @@
             </router-link>
           </div>
           <div class="comment-content">{{ comment.content }}</div>
-          <!-- Display replies (threaded) if any -->
+          <!-- Display threaded replies if any -->
           <ul class="replies" v-if="comment.replies && comment.replies.length">
             <li v-for="reply in comment.replies" :key="reply.id">
               <div class="comment-header">

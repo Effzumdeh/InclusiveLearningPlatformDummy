@@ -9,11 +9,13 @@ router = APIRouter(prefix="/api/user", tags=["user"])
 
 @router.get("/settings")
 def get_user_settings(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return {"daily_target": current_user.daily_target,
-            "is_full_name_public": current_user.is_full_name_public,
-            "is_age_public": current_user.is_age_public,
-            "is_description_public": current_user.is_description_public,
-            "is_profile_picture_public": current_user.is_profile_picture_public}
+    return {
+        "daily_target": current_user.daily_target,
+        "is_full_name_public": current_user.is_full_name_public,
+        "is_age_public": current_user.is_age_public,
+        "is_description_public": current_user.is_description_public,
+        "is_profile_picture_public": current_user.is_profile_picture_public
+    }
 
 @router.put("/settings")
 def update_user_settings(new_setting: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -65,7 +67,10 @@ def get_profile(db: Session = Depends(get_db), current_user: User = Depends(get_
         "is_full_name_public": current_user.is_full_name_public,
         "is_age_public": current_user.is_age_public,
         "is_description_public": current_user.is_description_public,
-        "is_profile_picture_public": current_user.is_profile_picture_public
+        "is_profile_picture_public": current_user.is_profile_picture_public,
+        "show_chat": current_user.show_chat,
+        "show_stats": current_user.show_stats,
+        "show_comments": current_user.show_comments
     }
 
 @router.put("/profile")
@@ -78,6 +83,9 @@ def update_profile(
     is_age_public: str = Form("true"),
     is_description_public: str = Form("true"),
     is_profile_picture_public: str = Form("true"),
+    show_chat: str = Form("true"),
+    show_stats: str = Form("true"),
+    show_comments: str = Form("true"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -105,6 +113,9 @@ def update_profile(
     current_user.is_age_public = (is_age_public.lower() == "true")
     current_user.is_description_public = (is_description_public.lower() == "true")
     current_user.is_profile_picture_public = (is_profile_picture_public.lower() == "true")
+    current_user.show_chat = (show_chat.lower() == "true")
+    current_user.show_stats = (show_stats.lower() == "true")
+    current_user.show_comments = (show_comments.lower() == "true")
     db.commit()
     return {
         "username": current_user.username,
@@ -116,10 +127,12 @@ def update_profile(
         "is_full_name_public": current_user.is_full_name_public,
         "is_age_public": current_user.is_age_public,
         "is_description_public": current_user.is_description_public,
-        "is_profile_picture_public": current_user.is_profile_picture_public
+        "is_profile_picture_public": current_user.is_profile_picture_public,
+        "show_chat": current_user.show_chat,
+        "show_stats": current_user.show_stats,
+        "show_comments": current_user.show_comments
     }
 
-# Neuer Endpunkt: Öffentliche Profilansicht eines beliebigen Nutzers
 @router.get("/{user_id}/public-profile")
 def get_public_profile(user_id: int, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()

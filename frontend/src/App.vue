@@ -3,7 +3,9 @@
     <header>
       <div class="header-buttons" v-if="authStore.token">
         <button class="header-button" @click="logout">Abmelden 🚪</button>
-        <button v-if="route.name !== 'Home'" class="header-button" @click="goHome">Zur Hauptseite 🏠</button>
+        <button v-if="route.name !== 'Home'" class="header-button" @click="goHome">
+          Zur Hauptseite 🏠
+        </button>
       </div>
       <h1>Willkommen auf der Lernplattform</h1>
     </header>
@@ -18,7 +20,8 @@
           Jetzt der Videokonferenz beitreten <span class="meeting-emojis">📹👥</span>
         </button>
       </div>
-      <div class="chat-overlay">
+      <!-- KI-Chat nur anzeigen wenn in den Einstellungen aktiviert -->
+      <div class="chat-overlay" v-if="authStore.user && authStore.user.show_chat">
         <button class="chat-btn" @click="toggleChat">?</button>
         <div v-if="chatOpen" class="chat-window">
           <div class="chat-header">
@@ -32,7 +35,12 @@
             </div>
           </div>
           <div class="chat-footer">
-            <input type="text" placeholder="Nachricht eingeben..." v-model="chatInput" @keyup.enter="sendMessage" />
+            <input
+              type="text"
+              placeholder="Nachricht eingeben..."
+              v-model="chatInput"
+              @keyup.enter="sendMessage"
+            />
             <button class="mic-btn" @click="toggleSpeechRecognition">
               <span v-if="isListening">🛑</span>
               <span v-else>🎤</span>
@@ -47,6 +55,8 @@
     <footer id="tutorial-footer">
       <a href="#" @click.prevent="restartTutorial">Tutorial wiederholen</a>
     </footer>
+    <!-- Dynamischer Schriftgrößen-Slider, fix unten links -->
+    <FontSizeSlider />
   </div>
 </template>
 
@@ -56,10 +66,11 @@ import { useAuthStore } from "./store/auth";
 import { useTutorialStore } from "./store/tutorial";
 import { useRouter, useRoute } from "vue-router";
 import TutorialOverlay from "./components/TutorialOverlay.vue";
+import FontSizeSlider from "./components/FontSizeSlider.vue";
 
 export default {
   name: "App",
-  components: { TutorialOverlay },
+  components: { TutorialOverlay, FontSizeSlider },
   setup() {
     const authStore = useAuthStore();
     authStore.loadStoredAuth();
@@ -68,7 +79,6 @@ export default {
     const tutorialStore = useTutorialStore();
     const tutorialActive = ref(false);
 
-    // Sobald sich der Routenname ändert, wird der TutorialStore für die aktuelle Seite (Route) aktualisiert.
     watch(
       () => route.name,
       (newRoute) => {
@@ -79,19 +89,31 @@ export default {
 
     onMounted(async () => {
       try {
-        const response = await fetch("http://127.0.0.1:8000/api/user/tutorial-status", {
-          headers: { Authorization: "Bearer " + authStore.token }
+        const tutorialResponse = await fetch("http://127.0.0.1:8000/api/user/tutorial-status", {
+          headers: { Authorization: "Bearer " + authStore.token },
         });
-        const data = await response.json();
-        if (!data.completed) {
+        const tutorialData = await tutorialResponse.json();
+        if (!tutorialData.completed) {
           tutorialActive.value = true;
           tutorialStore.startTutorial();
         }
       } catch (error) {
         console.error("Error fetching tutorial status:", error);
-        // Fallback: Starte das Tutorial auch bei Fehlern
         tutorialActive.value = true;
         tutorialStore.startTutorial();
+      }
+      // Falls ein Nutzer eingeloggt ist, holen wir die erweiterten Profileinstellungen
+      if (authStore.token) {
+        try {
+          const profileResponse = await fetch("http://127.0.0.1:8000/api/user/profile", {
+            headers: { Authorization: "Bearer " + authStore.token }
+          });
+          const profileData = await profileResponse.json();
+          // Merge die neuen Anzeigepräferenzen in authStore.user
+          authStore.user = { ...authStore.user, ...profileData };
+        } catch (error) {
+          console.error("Fehler beim Laden der Profil-Einstellungen:", error);
+        }
       }
     });
 
@@ -246,9 +268,9 @@ export default {
       goHome,
       tutorialActive,
       restartTutorial,
-      finishTutorial
+      finishTutorial,
     };
-  }
+  },
 };
 </script>
 
@@ -423,8 +445,6 @@ footer a {
   text-decoration: underline;
   cursor: pointer;
 }
-
-/* Neuer Style für hervorgehobene Elemente im Tutorial */
 .tutorial-highlight {
   box-shadow: 0 0 10px 5px yellow;
   position: relative;
