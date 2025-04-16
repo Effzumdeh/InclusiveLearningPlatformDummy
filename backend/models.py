@@ -64,6 +64,10 @@ class User(Base):
     is_age_public = Column(Boolean, default=True)
     is_description_public = Column(Boolean, default=True)
     is_profile_picture_public = Column(Boolean, default=True)
+    # Neue optionale Anzeigepräferenzen (Standardeinstellung: sichtbar)
+    show_chat = Column(Boolean, default=True)
+    show_stats = Column(Boolean, default=True)
+    show_comments = Column(Boolean, default=True)
 
 class TutorialStatus(Base):
     __tablename__ = "tutorial_statuses"

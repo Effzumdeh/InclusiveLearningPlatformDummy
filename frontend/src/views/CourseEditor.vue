@@ -147,7 +147,7 @@ export default {
       option2: "",
       option3: "",
       option4: "",
-      correct_option: 1
+      correct_option: 1,
     });
 
     const fetchCourses = async () => {
@@ -164,8 +164,8 @@ export default {
         try {
           const response = await fetch(`http://127.0.0.1:8000/api/courses/${store.editingCourseId}/quiz-questions/all`, {
             headers: {
-              Authorization: "Bearer " + localStorage.getItem("token")
-            }
+              Authorization: "Bearer " + localStorage.getItem("token"),
+            },
           });
           quizQuestions.value = await response.json();
         } catch (error) {
@@ -181,9 +181,9 @@ export default {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: "Bearer " + localStorage.getItem("token")
+            Authorization: "Bearer " + localStorage.getItem("token"),
           },
-          body: JSON.stringify(newQuizQuestion.value)
+          body: JSON.stringify(newQuizQuestion.value),
         });
         const result = await response.json();
         if (!response.ok) {
@@ -202,7 +202,7 @@ export default {
       try {
         const response = await fetch(`http://127.0.0.1:8000/api/quiz-questions/${questionId}`, {
           method: "DELETE",
-          headers: { Authorization: "Bearer " + localStorage.getItem("token") }
+          headers: { Authorization: "Bearer " + localStorage.getItem("token") },
         });
         if (response.ok) {
           await fetchQuizQuestions();
@@ -226,9 +226,9 @@ export default {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            Authorization: "Bearer " + localStorage.getItem("token")
+            Authorization: "Bearer " + localStorage.getItem("token"),
           },
-          body: JSON.stringify(newQuizQuestion.value)
+          body: JSON.stringify(newQuizQuestion.value),
         });
         if (response.ok) {
           await fetchQuizQuestions();
@@ -243,7 +243,14 @@ export default {
     };
 
     const resetQuizForm = () => {
-      newQuizQuestion.value = { question_text: "", option1: "", option2: "", option3: "", option4: "", correct_option: 1 };
+      newQuizQuestion.value = {
+        question_text: "",
+        option1: "",
+        option2: "",
+        option3: "",
+        option4: "",
+        correct_option: 1,
+      };
     };
 
     onMounted(() => {
@@ -253,7 +260,7 @@ export default {
           toolbar: [
             ["bold", "italic", "underline"],
             [{ list: "ordered" }, { list: "bullet" }],
-            ["link", "image"],
+            ["link", "image", "video"], // Erweiterung: Video-Button hinzugefügt
           ],
         },
       });
@@ -345,7 +352,6 @@ export default {
           shortDescription: store.shortDescription,
           courseContent: store.courseContent,
         };
-        // Wenn ein Kurs bearbeitet wird, die zugehörigen Quizfragen laden
         fetchQuizQuestions();
       } catch (error) {
         console.error("Fehler beim Laden des Kurses:", error);

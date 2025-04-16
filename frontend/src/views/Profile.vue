@@ -1,52 +1,66 @@
 <template>
   <div class="profile">
     <h2>Mein Profil</h2>
-<form @submit.prevent="updateProfile" enctype="multipart/form-data">
-  <div class="form-group">
-    <label for="full_name">Name:</label>
-    <input id="full_name" v-model="profile.full_name" type="text" />
-  </div>
-  <div class="form-group">
-    <label for="birth_date">Geburtsdatum:</label>
-    <input id="birth_date" v-model="profile.birth_date" type="date" />
-  </div>
-  <div class="form-group">
-    <label for="short_description">Kurzbeschreibung:</label>
-    <textarea id="short_description" v-model="profile.short_description"></textarea>
-  </div>
-  <div class="form-group">
-    <label for="profile_picture">Profilbild:</label>
-    <input id="profile_picture" type="file" @change="handleFileUpload" />
-  </div>
+    <form @submit.prevent="updateProfile" enctype="multipart/form-data">
+      <div class="form-group">
+        <label for="full_name">Name:</label>
+        <input id="full_name" v-model="profile.full_name" type="text" />
+      </div>
+      <div class="form-group">
+        <label for="birth_date">Geburtsdatum:</label>
+        <input id="birth_date" v-model="profile.birth_date" type="date" />
+      </div>
+      <div class="form-group">
+        <label for="short_description">Kurzbeschreibung:</label>
+        <textarea id="short_description" v-model="profile.short_description"></textarea>
+      </div>
+      <div class="form-group">
+        <label for="profile_picture">Profilbild:</label>
+        <input id="profile_picture" type="file" @change="handleFileUpload" />
+      </div>
 
-<fieldset class="form-group">
-  <legend>Öffentliche Anzeigeoptionen</legend>
+      <fieldset class="form-group">
+        <legend>Öffentliche Anzeigeoptionen</legend>
+        <div class="checkbox-group">
+          <label for="public_name">Name öffentlich anzeigen</label>
+          <input type="checkbox" v-model="privacy.is_full_name_public" id="public_name" />
+        </div>
 
-  <div class="checkbox-group">
-    <label for="public_name">Name öffentlich anzeigen</label>
-    <input type="checkbox" v-model="privacy.is_full_name_public" id="public_name" />
-  </div>
+        <div class="checkbox-group">
+          <label for="public_age">Alter öffentlich anzeigen</label>
+          <input type="checkbox" v-model="privacy.is_age_public" id="public_age" />
+        </div>
 
-  <div class="checkbox-group">
-    <label for="public_age">Alter öffentlich anzeigen</label>
-    <input type="checkbox" v-model="privacy.is_age_public" id="public_age" />
-  </div>
+        <div class="checkbox-group">
+          <label for="public_description">Kurzbeschreibung öffentlich anzeigen</label>
+          <input type="checkbox" v-model="privacy.is_description_public" id="public_description" />
+        </div>
 
-  <div class="checkbox-group">
-    <label for="public_description">Kurzbeschreibung öffentlich anzeigen</label>
-    <input type="checkbox" v-model="privacy.is_description_public" id="public_description" />
-  </div>
+        <div class="checkbox-group">
+          <label for="public_picture">Profilbild öffentlich anzeigen</label>
+          <input type="checkbox" v-model="privacy.is_profile_picture_public" id="public_picture" />
+        </div>
+      </fieldset>
 
-  <div class="checkbox-group">
-    <label for="public_picture">Profilbild öffentlich anzeigen</label>
-    <input type="checkbox" v-model="privacy.is_profile_picture_public" id="public_picture" />
-  </div>
-</fieldset>
+      <!-- Neuer Abschnitt: Anzeigeoptionen für Seiten-Elemente -->
+      <fieldset class="form-group">
+        <legend>Seitenanzeigeoptionen</legend>
+        <div class="checkbox-group">
+          <label for="show_chat">KI-Assistent-Chat anzeigen</label>
+          <input type="checkbox" id="show_chat" v-model="preferences.show_chat" />
+        </div>
+        <div class="checkbox-group">
+          <label for="show_stats">Lernstatistiken anzeigen</label>
+          <input type="checkbox" id="show_stats" v-model="preferences.show_stats" />
+        </div>
+        <div class="checkbox-group">
+          <label for="show_comments">Kommentare anzeigen</label>
+          <input type="checkbox" id="show_comments" v-model="preferences.show_comments" />
+        </div>
+      </fieldset>
 
-
-  <button type="submit">Profil aktualisieren</button>
-</form>
-
+      <button type="submit">Profil aktualisieren</button>
+    </form>
   </div>
 </template>
 
@@ -69,6 +83,11 @@ export default {
       is_description_public: true,
       is_profile_picture_public: true
     });
+    const preferences = ref({
+      show_chat: true,
+      show_stats: true,
+      show_comments: true
+    });
     const selectedFile = ref(null);
 
     const fetchProfile = async () => {
@@ -88,6 +107,11 @@ export default {
           is_age_public: data.is_age_public,
           is_description_public: data.is_description_public,
           is_profile_picture_public: data.is_profile_picture_public
+        };
+        preferences.value = {
+          show_chat: data.show_chat,
+          show_stats: data.show_stats,
+          show_comments: data.show_comments
         };
       } catch (error) {
         console.error("Fehler beim Laden des Profils:", error);
@@ -110,14 +134,19 @@ export default {
       formData.append("is_age_public", privacy.value.is_age_public);
       formData.append("is_description_public", privacy.value.is_description_public);
       formData.append("is_profile_picture_public", privacy.value.is_profile_picture_public);
+      formData.append("show_chat", preferences.value.show_chat);
+      formData.append("show_stats", preferences.value.show_stats);
+      formData.append("show_comments", preferences.value.show_comments);
       try {
         const response = await fetch("http://127.0.0.1:8000/api/user/profile", {
           method: "PUT",
           headers: { Authorization: "Bearer " + authStore.token },
           body: formData
         });
-        await response.json();
+        const data = await response.json();
         alert("Profil erfolgreich aktualisiert!");
+        // Optional: Update authStore.user falls benötigt
+        authStore.user = { ...authStore.user, ...data };
         fetchProfile();
       } catch (error) {
         console.error("Fehler beim Aktualisieren des Profils:", error);
@@ -128,7 +157,7 @@ export default {
       fetchProfile();
     });
 
-    return { profile, privacy, handleFileUpload, updateProfile };
+    return { profile, privacy, preferences, handleFileUpload, updateProfile };
   }
 };
 </script>
@@ -163,35 +192,16 @@ export default {
   border-radius: 4px;
   cursor: pointer;
 }
-
 .form-group {
-  padding-left: 1rem;
-  padding-right: 1rem;
+  padding: 0 1rem;
 }
-
 .checkbox-group {
-  display: grid;
-  grid-template-columns: 1fr auto;
+  display: flex;
   align-items: center;
-  padding: 0.5rem 1rem;
-  column-gap: 1rem;
+  margin: 0.5rem 0;
+  gap: 1rem;
 }
-
 .checkbox-group label {
   margin: 0;
-  white-space: nowrap;
 }
-
-.checkbox-group input[type="checkbox"] {
-  width: 1.25rem;
-  height: 1.25rem;
-}
-
-
-
-fieldset legend {
-  font-weight: bold;
-  margin-bottom: 0.5rem;
-}
-
 </style>
