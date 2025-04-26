@@ -9,7 +9,11 @@ from models import Course, LearningPath, UserStatistic, Comment, User
 from dependencies import get_db, get_current_user
 from auth_utils import get_password_hash
 
-# Erstelle alle Tabellen, falls sie noch nicht existieren.
+# Routers
+from routes import courses, auth, admin, user, quiz
+from routes.guardian import router as guardian_router
+
+# Create all tables, if they don't exist
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
@@ -18,11 +22,10 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Binde den Ordner "uploads" als statische Dateien ein, damit Profilbilder verfügbar sind.
+# Mount static upload directory
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 origins = ["http://localhost", "http://localhost:8080"]
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -33,31 +36,43 @@ app.add_middleware(
 
 @app.on_event("startup")
 def startup_event() -> None:
-    # Stelle sicher, dass alle Tabellen existieren (falls die DB neu ist oder gelöscht wurde)
+    # Ensure all tables exist
     Base.metadata.create_all(bind=engine)
-    
     inspector = inspect(engine)
-    # Migrate courses table: add missing columns if needed.
+
+    # Migrate courses table
     if inspector.has_table("courses"):
         course_columns = [col["name"] for col in inspector.get_columns("courses")]
         with engine.begin() as connection:
             if "short_description" not in course_columns:
                 connection.execute(text("ALTER TABLE courses ADD COLUMN short_description VARCHAR"))
-                print("Spalte 'short_description' zu Tabelle courses hinzugefügt.")
             if "course_content" not in course_columns:
                 connection.execute(text("ALTER TABLE courses ADD COLUMN course_content VARCHAR"))
-                print("Spalte 'course_content' zu Tabelle courses hinzugefügt.")
-                if "detailed_description" in course_columns:
-                    connection.execute(text("UPDATE courses SET course_content = detailed_description"))
-                    print("Werte von 'detailed_description' in 'course_content' kopiert.")
-    # Migrate comments table: add missing column "parent_id"
+
+    # Migrate comments table
     if inspector.has_table("comments"):
         comment_columns = [col["name"] for col in inspector.get_columns("comments")]
         with engine.begin() as connection:
             if "parent_id" not in comment_columns:
                 connection.execute(text("ALTER TABLE comments ADD COLUMN parent_id INTEGER"))
-                print("Spalte 'parent_id' zu Tabelle comments hinzugefügt.")
-    
+
+    # Migrate users table to add child flags and parent linkage
+    if inspector.has_table("users"):
+        user_columns = [col["name"] for col in inspector.get_columns("users")]
+        with engine.begin() as connection:
+            if "is_child_account" not in user_columns:
+                connection.execute(text("ALTER TABLE users ADD COLUMN is_child_account BOOLEAN DEFAULT 0"))
+            if "parent_user_id" not in user_columns:
+                connection.execute(text("ALTER TABLE users ADD COLUMN parent_user_id INTEGER"))
+
+    # Migrate user_statistics to add user_id
+    if inspector.has_table("user_statistics"):
+        stat_columns = [col["name"] for col in inspector.get_columns("user_statistics")]
+        with engine.begin() as connection:
+            if "user_id" not in stat_columns:
+                connection.execute(text("ALTER TABLE user_statistics ADD COLUMN user_id INTEGER"))
+
+    # Seed initial data if needed
     db: Session = SessionLocal()
     if db.query(Course).first() is None:
         course1 = Course(
@@ -77,11 +92,13 @@ def startup_event() -> None:
         )
         db.add_all([course1, course2, course3])
         db.commit()
+
     if db.query(LearningPath).first() is None:
-        courses = db.query(Course).all()
-        learning_path = LearningPath(name="Demo Lernpfad", courses=courses)
+        courses_all = db.query(Course).all()
+        learning_path = LearningPath(name="Demo Lernpfad", courses=courses_all)
         db.add(learning_path)
         db.commit()
+
     today = date.today()
     for i in range(7):
         stat_date = today - timedelta(days=i)
@@ -89,6 +106,7 @@ def startup_event() -> None:
             minutes = 30 + i * 10
             user_stat = UserStatistic(date=stat_date, minutes=minutes)
             db.add(user_stat)
+
     if not db.query(User).filter(User.username == "admin").first():
         admin_user = User(
             username="admin",
@@ -96,6 +114,7 @@ def startup_event() -> None:
             role="Admin"
         )
         db.add(admin_user)
+
     db.commit()
     db.close()
 
@@ -111,46 +130,57 @@ def get_learning_paths(db: Session = Depends(get_db)) -> list:
         result.append({
             "id": lp.id,
             "name": lp.name,
-            "courses": [{"id": course.id, "title": course.title, "short_description": course.short_description} for course in lp.courses]
+            "courses": [
+                {
+                    "id": course.id,
+                    "title": course.title,
+                    "short_description": course.short_description
+                } for course in lp.courses
+            ]
         })
     return result
 
 @app.get("/api/stats")
-def get_stats(db: Session = Depends(get_db)) -> list:
-    stats = db.query(UserStatistic).order_by(UserStatistic.date).all()
-    result = [{"date": stat.date.isoformat(), "minutes": stat.minutes} for stat in stats]
-    return result
+def get_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> list:
+    stats = db.query(UserStatistic)\
+              .filter(UserStatistic.user_id == current_user.id)\
+              .order_by(UserStatistic.date).all()
+    return [{"date": stat.date.isoformat(), "minutes": stat.minutes} for stat in stats]
 
 @app.get("/api/comments/{course_id}")
 def get_comments(course_id: int, db: Session = Depends(get_db)) -> list:
     comments = db.query(Comment).filter(Comment.course_id == course_id).order_by(Comment.timestamp).all()
     comment_dict = {}
-    for comment in comments:
-        comment_dict[comment.id] = {
-            "id": comment.id,
-            "course_id": comment.course_id,
-            "content": comment.content,
-            "timestamp": comment.timestamp.isoformat(),
-            "username": comment.user.username if comment.user else "",
-            "user_id": comment.user.id if comment.user else None,
-            "parent_id": comment.parent_id,
+    for c in comments:
+        comment_dict[c.id] = {
+            "id": c.id,
+            "course_id": c.course_id,
+            "content": c.content,
+            "timestamp": c.timestamp.isoformat(),
+            "username": c.user.username if c.user else "",
+            "user_id": c.user.id if c.user else None,
+            "parent_id": c.parent_id,
             "replies": []
         }
-    root_comments = []
+    roots = []
     for c in comment_dict.values():
         if c["parent_id"]:
             parent = comment_dict.get(c["parent_id"])
             if parent:
                 parent["replies"].append(c)
             else:
-                root_comments.append(c)
+                roots.append(c)
         else:
-            root_comments.append(c)
-    return root_comments
+            roots.append(c)
+    return roots
 
-from dependencies import get_current_user
 @app.post("/api/comments/{course_id}")
-def post_comment(course_id: int, new_comment: dict, db: Session = Depends(get_db), current_user = Depends(get_current_user)) -> dict:
+def post_comment(course_id: int, new_comment: dict,
+                 db: Session = Depends(get_db),
+                 current_user = Depends(get_current_user)) -> dict:
     course = db.query(Course).filter(Course.id == course_id).first()
     if not course:
         raise HTTPException(status_code=404, detail="Kurs nicht gefunden")
@@ -159,10 +189,15 @@ def post_comment(course_id: int, new_comment: dict, db: Session = Depends(get_db
         raise HTTPException(status_code=400, detail="Kommentarinhalt darf nicht leer sein")
     parent_id = new_comment.get("parent_id")
     if parent_id:
-        parent_comment = db.query(Comment).filter(Comment.id == parent_id, Comment.course_id == course_id).first()
+        parent_comment = db.query(Comment).filter(
+            Comment.id == parent_id, Comment.course_id == course_id
+        ).first()
         if not parent_comment:
             raise HTTPException(status_code=400, detail="Ungültiger parent_id")
-    comment = Comment(course_id=course_id, content=content, user_id=current_user.id, parent_id=parent_id)
+    comment = Comment(course_id=course_id,
+                      content=content,
+                      user_id=current_user.id,
+                      parent_id=parent_id)
     db.add(comment)
     db.commit()
     db.refresh(comment)
@@ -177,12 +212,13 @@ def post_comment(course_id: int, new_comment: dict, db: Session = Depends(get_db
         "replies": []
     }
 
-from routes import courses, auth, admin, user, quiz
+# Include routers
 app.include_router(courses.router)
 app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(user.router)
 app.include_router(quiz.router)
+app.include_router(guardian_router)
 
 if __name__ == "__main__":
     import uvicorn

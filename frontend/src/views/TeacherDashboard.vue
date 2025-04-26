@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="teacher-dashboard">
     <h2>Teacher Dashboard</h2>
     <p v-if="authStore.user">Willkommen, {{ authStore.user.username }}!</p>
     <p>Hier haben Sie Zugriff auf den Kurseditor und weitere Funktionen.</p>
@@ -16,3 +16,9 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.teacher-dashboard {
+  padding: 2rem;
+}
+</style>

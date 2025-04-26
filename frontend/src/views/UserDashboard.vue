@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="user-dashboard">
     <h2>User Dashboard</h2>
     <p v-if="authStore.user">Willkommen, {{ authStore.user.username }}!</p>
   </div>
@@ -15,3 +15,9 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.user-dashboard {
+  padding: 2rem;
+}
+</style>
