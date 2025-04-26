@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from dependencies import get_db, get_current_user
-from models import User
+from models import User, UserStatistic, Course
 from datetime import datetime, date
 import os
 
@@ -14,11 +15,17 @@ def get_user_settings(db: Session = Depends(get_db), current_user: User = Depend
         "is_full_name_public": current_user.is_full_name_public,
         "is_age_public": current_user.is_age_public,
         "is_description_public": current_user.is_description_public,
-        "is_profile_picture_public": current_user.is_profile_picture_public
+        "is_profile_picture_public": current_user.is_profile_picture_public,
+        "show_chat": current_user.show_chat,
+        "show_stats": current_user.show_stats,
+        "show_comments": current_user.show_comments,
+        "theme_preference": current_user.theme_preference
     }
 
 @router.put("/settings")
-def update_user_settings(new_setting: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def update_user_settings(new_setting: dict,
+                         db: Session = Depends(get_db),
+                         current_user: User = Depends(get_current_user)):
     try:
         new_target = int(new_setting.get("daily_target"))
     except (ValueError, TypeError):
@@ -28,7 +35,8 @@ def update_user_settings(new_setting: dict, db: Session = Depends(get_db), curre
     return {"daily_target": current_user.daily_target}
 
 @router.get("/tutorial-status")
-def get_tutorial_status(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_tutorial_status(db: Session = Depends(get_db),
+                        current_user: User = Depends(get_current_user)):
     from models import TutorialStatus
     status_record = db.query(TutorialStatus).filter(TutorialStatus.user_id == current_user.id).first()
     if status_record:
@@ -37,7 +45,9 @@ def get_tutorial_status(db: Session = Depends(get_db), current_user: User = Depe
         return {"completed": False, "completed_at": None}
 
 @router.post("/tutorial-status")
-def set_tutorial_status(status: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def set_tutorial_status(status: dict,
+                        db: Session = Depends(get_db),
+                        current_user: User = Depends(get_current_user)):
     from models import TutorialStatus
     completed = status.get("completed", False)
     status_record = db.query(TutorialStatus).filter(TutorialStatus.user_id == current_user.id).first()
@@ -70,7 +80,10 @@ def get_profile(db: Session = Depends(get_db), current_user: User = Depends(get_
         "is_profile_picture_public": current_user.is_profile_picture_public,
         "show_chat": current_user.show_chat,
         "show_stats": current_user.show_stats,
-        "show_comments": current_user.show_comments
+        "show_comments": current_user.show_comments,
+        "theme_preference": current_user.theme_preference,
+        "is_child_account": current_user.is_child_account,
+        "parent_user_id": current_user.parent_user_id
     }
 
 @router.put("/profile")
@@ -86,6 +99,7 @@ def update_profile(
     show_chat: str = Form("true"),
     show_stats: str = Form("true"),
     show_comments: str = Form("true"),
+    theme_preference: str = Form("system"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -104,8 +118,7 @@ def update_profile(
     if profile_picture is not None:
         upload_dir = "uploads"
         os.makedirs(upload_dir, exist_ok=True)
-        file_location = os.path.join(upload_dir, profile_picture.filename)
-        file_location = file_location.replace("\\", "/")
+        file_location = os.path.join(upload_dir, profile_picture.filename).replace("\\", "/")
         with open(file_location, "wb") as f:
             f.write(profile_picture.file.read())
         current_user.profile_picture = file_location
@@ -116,6 +129,7 @@ def update_profile(
     current_user.show_chat = (show_chat.lower() == "true")
     current_user.show_stats = (show_stats.lower() == "true")
     current_user.show_comments = (show_comments.lower() == "true")
+    current_user.theme_preference = theme_preference
     db.commit()
     return {
         "username": current_user.username,
@@ -130,7 +144,8 @@ def update_profile(
         "is_profile_picture_public": current_user.is_profile_picture_public,
         "show_chat": current_user.show_chat,
         "show_stats": current_user.show_stats,
-        "show_comments": current_user.show_comments
+        "show_comments": current_user.show_comments,
+        "theme_preference": current_user.theme_preference
     }
 
 @router.get("/{user_id}/public-profile")
@@ -150,3 +165,54 @@ def get_public_profile(user_id: int, db: Session = Depends(get_db)):
         "profile_picture": user.profile_picture if user.is_profile_picture_public else None,
         "points": user.points
     }
+
+# NEW: Heartbeat endpoint using SQLite UPSERT
+@router.post("/heartbeat", status_code=status.HTTP_200_OK)
+def heartbeat(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """
+    Increments today's learning-minutes for the current user by one,
+    using SQLite ON CONFLICT to avoid UNIQUE(date) errors.
+    """
+    today_str = date.today().isoformat()
+    sql = text("""
+        INSERT INTO user_statistics(date, user_id, minutes)
+        VALUES(:d, :uid, 1)
+        ON CONFLICT(date) DO UPDATE
+          SET minutes = user_statistics.minutes + 1,
+              user_id = :uid
+    """)
+    db.execute(sql, {"d": today_str, "uid": current_user.id})
+    db.commit()
+    stat = db.query(UserStatistic).filter_by(date=date.fromisoformat(today_str)).first()
+    return {"date": today_str, "minutes": stat.minutes}
+
+# NEW: Self-enrollment endpoints
+@router.get("/courses", response_model=list)
+def get_enrolled_courses(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return [
+        {
+            "id": c.id,
+            "title": c.title,
+            "short_description": c.short_description
+        } for c in current_user.courses
+    ]
+
+@router.post("/courses/{course_id}", status_code=status.HTTP_201_CREATED)
+def enroll_course(course_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Kurs nicht gefunden")
+    if course in current_user.courses:
+        raise HTTPException(status_code=409, detail="Bereits eingeschrieben")
+    current_user.courses.append(course)
+    db.commit()
+    return {"message": "eingeschrieben", "course_id": course_id}
+
+@router.delete("/courses/{course_id}", status_code=status.HTTP_204_NO_CONTENT)
+def unenroll_course(course_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course or course not in current_user.courses:
+        raise HTTPException(status_code=404, detail="Nicht eingeschrieben")
+    current_user.courses.remove(course)
+    db.commit()
+    return

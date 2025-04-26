@@ -10,10 +10,12 @@
           </router-link>
         </li>
       </ul>
+      <div v-if="authStore.user && !authStore.user.is_child_account" class="all-courses-link">
+        <router-link to="/courses/all">Zur Auswahl aller Kurse</router-link>
+      </div>
     </aside>
     <section class="learning-paths">
-      <!-- Lernstatistiken nur anzeigen, wenn in den Nutzereinstellungen aktiviert -->
-      <div class="stats-chart" v-if="authStore.user && authStore.user.show_stats">
+      <div class="stats-chart" v-show="authStore.user && authStore.user.show_stats">
         <h2>Nutzungsstatistiken (Lernminuten pro Tag)</h2>
         <div class="target-input">
           <label for="dailyTarget">Individuelles Tagesziel (Minuten):</label>
@@ -24,7 +26,7 @@
       </div>
     </section>
     <div class="dashboard-links" v-if="authStore.user">
-      <router-link v-if="authStore.user.role === 'Teacher' || authStore.user.role === 'Admin'" to="/editor">
+      <router-link v-if="!authStore.user.is_child_account" to="/editor">
         Kurseditor
       </router-link>
       <router-link v-if="authStore.user.role === 'Admin'" to="/dashboard/admin">
@@ -32,6 +34,9 @@
       </router-link>
       <router-link to="/profile">
         Mein Profil
+      </router-link>
+      <router-link v-if="!authStore.user.is_child_account" to="/dashboard/family">
+        Für Angehörige/Lehrkräfte
       </router-link>
     </div>
   </main>
@@ -48,7 +53,6 @@ export default {
   name: "Home",
   setup() {
     const courses = ref([]);
-    const learningPaths = ref([]);
     const stats = ref([]);
     const dailyTarget = ref(60);
     const dailyTargetInput = ref(60);
@@ -57,18 +61,23 @@ export default {
 
     const fetchData = async () => {
       try {
-        const coursesResponse = await fetch("http://127.0.0.1:8000/api/courses");
+        const coursesResponse = await fetch("http://127.0.0.1:8000/api/user/courses", {
+          headers: { Authorization: "Bearer " + authStore.token },
+        });
         courses.value = await coursesResponse.json();
-        const lpResponse = await fetch("http://127.0.0.1:8000/api/learning-paths");
-        learningPaths.value = await lpResponse.json();
-        const statsResponse = await fetch("http://127.0.0.1:8000/api/stats");
+
+        const statsResponse = await fetch("http://127.0.0.1:8000/api/stats", {
+          headers: { Authorization: "Bearer " + authStore.token },
+        });
         stats.value = await statsResponse.json();
+
         const settingsResponse = await fetch("http://127.0.0.1:8000/api/user/settings", {
           headers: { Authorization: "Bearer " + authStore.token }
         });
         const settingsData = await settingsResponse.json();
         dailyTarget.value = settingsData.daily_target;
         dailyTargetInput.value = settingsData.daily_target;
+
         createStatsChart();
       } catch (error) {
         console.error("Fehler beim Abrufen der Daten:", error);
@@ -76,7 +85,9 @@ export default {
     };
 
     const createStatsChart = () => {
-      const ctx = document.getElementById("statsChart").getContext("2d");
+      const canvas = document.getElementById("statsChart");
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
       const labels = stats.value.map((item) => item.date);
       const data = stats.value.map((item) => item.minutes);
       const backgroundColors = data.map((minutes) =>
@@ -161,9 +172,9 @@ export default {
     onMounted(() => {
       fetchData();
     });
+
     return {
       courses,
-      learningPaths,
       dailyTarget,
       dailyTargetInput,
       saveDailyTarget,
@@ -196,6 +207,15 @@ export default {
   margin-bottom: 1rem;
   padding: 0.5rem;
   border-bottom: 1px solid #004c97;
+}
+.all-courses-link {
+  margin-top: 1rem;
+  text-align: center;
+}
+.all-courses-link a {
+  font-weight: bold;
+  color: #004c97;
+  text-decoration: underline;
 }
 .learning-paths {
   flex-grow: 1;

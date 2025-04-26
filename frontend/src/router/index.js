@@ -8,6 +8,8 @@ import TeacherDashboard from "../views/TeacherDashboard.vue";
 import AdminDashboard from "../views/AdminDashboard.vue";
 import Profile from "../views/Profile.vue";
 import ProfileView from "../views/ProfileView.vue";
+import CourseSelection from "../views/CourseSelection.vue";
+import FamilyDashboard from "../views/FamilyDashboard.vue";
 
 const routes = [
   {
@@ -46,6 +48,16 @@ const routes = [
     component: AdminDashboard,
   },
   {
+    path: "/dashboard/family",
+    name: "FamilyDashboard",
+    component: FamilyDashboard,
+  },
+  {
+    path: "/courses/all",
+    name: "CourseSelection",
+    component: CourseSelection,
+  },
+  {
     path: "/profile",
     name: "Profile",
     component: Profile,
@@ -62,7 +74,6 @@ const router = createRouter({
   routes,
 });
 
-// Global navigation guard: every route except LoginRegister requires login.
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem("token");
   if (!token && to.name !== "LoginRegister") {

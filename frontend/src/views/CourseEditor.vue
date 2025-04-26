@@ -19,10 +19,10 @@
       </div>
     </form>
 
-    <CoursePreview 
-      :title="store.title" 
-      :shortDescription="store.shortDescription" 
-      :courseContent="store.courseContent" 
+    <CoursePreview
+      :title="store.title"
+      :shortDescription="store.shortDescription"
+      :courseContent="store.courseContent"
     />
 
     <FeedbackDisplay v-if="feedback" :feedback="feedback" />
@@ -47,6 +47,15 @@
         </tr>
       </tbody>
     </table>
+
+    <!-- Nutzungs-Statistiken -->
+    <h3>Nutzungsstatistiken</h3>
+    <div v-if="analytics">
+      <p>Einzigartige Öffnungen: {{ analytics.unique_openers }}</p>
+      <p>Quiz-Teilnehmer: {{ analytics.unique_quiz_participants }}</p>
+      <p>Ø beantwortete Fragen: {{ analytics.avg_questions_answered.toFixed(2) }}</p>
+      <p>Abgeschlossen (%): {{ analytics.percent_completed.toFixed(2) }}%</p>
+    </div>
 
     <!-- Neuer Abschnitt: Quizfragenverwaltung -->
     <h3>Quizfragen Verwaltung</h3>
@@ -118,6 +127,7 @@ import FeedbackDisplay from "../components/FeedbackDisplay.vue";
 import { useRouter } from "vue-router";
 import Quill from "quill";
 import "quill/dist/quill.snow.css";
+
 export default {
   name: "CourseEditor",
   components: {
@@ -133,6 +143,7 @@ export default {
     const errorMessage = ref("");
     const feedback = ref(null);
     const courses = ref([]);
+    const analytics = ref(null);
     const originalState = ref({
       title: "",
       shortDescription: "",
@@ -171,6 +182,20 @@ export default {
         } catch (error) {
           console.error("Fehler beim Laden der Quizfragen:", error);
         }
+      }
+    };
+
+    const fetchAnalytics = async () => {
+      if (!store.editingCourseId) return;
+      try {
+        const r = await fetch(`http://127.0.0.1:8000/api/courses/${store.editingCourseId}/analytics`, {
+          headers: {
+            Authorization: "Bearer " + localStorage.getItem("token"),
+          },
+        });
+        analytics.value = await r.json();
+      } catch (e) {
+        console.error("Analytics-Laden fehlgeschlagen:", e);
       }
     };
 
@@ -253,14 +278,14 @@ export default {
       };
     };
 
-    onMounted(() => {
+    onMounted(async () => {
       quillInstance = new Quill(quillEditor.value, {
         theme: "snow",
         modules: {
           toolbar: [
             ["bold", "italic", "underline"],
             [{ list: "ordered" }, { list: "bullet" }],
-            ["link", "image", "video"], // Erweiterung: Video-Button hinzugefügt
+            ["link", "image", "video"],
           ],
         },
       });
@@ -269,8 +294,9 @@ export default {
         store.courseContent = quillInstance.root.innerHTML;
         store.saveToLocal();
       });
-      fetchCourses();
-      fetchQuizQuestions();
+      await fetchCourses();
+      await fetchQuizQuestions();
+      await fetchAnalytics();
       originalState.value = {
         title: store.title,
         shortDescription: store.shortDescription,
@@ -304,13 +330,19 @@ export default {
           if (store.editingCourseId) {
             response = await fetch(`http://127.0.0.1:8000/api/courses/${store.editingCourseId}`, {
               method: "PUT",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: "Bearer " + localStorage.getItem("token"),
+              },
               body: JSON.stringify(payload),
             });
           } else {
             response = await fetch("http://127.0.0.1:8000/api/courses", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: "Bearer " + localStorage.getItem("token"),
+              },
               body: JSON.stringify(payload),
             });
           }
@@ -352,7 +384,8 @@ export default {
           shortDescription: store.shortDescription,
           courseContent: store.courseContent,
         };
-        fetchQuizQuestions();
+        await fetchQuizQuestions();
+        await fetchAnalytics();
       } catch (error) {
         console.error("Fehler beim Laden des Kurses:", error);
       }
@@ -391,10 +424,10 @@ export default {
       feedback,
       updateStore,
       courses,
+      analytics,
       editCourse,
       deleteCourse,
       unsavedChangesExist,
-      // Quizfunktionen
       quizQuestions,
       newQuizQuestion,
       addQuizQuestion,

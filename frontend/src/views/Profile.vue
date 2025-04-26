@@ -19,31 +19,27 @@
         <input id="profile_picture" type="file" @change="handleFileUpload" />
       </div>
 
-      <fieldset class="form-group">
+      <fieldset class="form-group" v-if="!authStore.user.is_child_account">
         <legend>Öffentliche Anzeigeoptionen</legend>
         <div class="checkbox-group">
           <label for="public_name">Name öffentlich anzeigen</label>
           <input type="checkbox" v-model="privacy.is_full_name_public" id="public_name" />
         </div>
-
         <div class="checkbox-group">
           <label for="public_age">Alter öffentlich anzeigen</label>
           <input type="checkbox" v-model="privacy.is_age_public" id="public_age" />
         </div>
-
         <div class="checkbox-group">
           <label for="public_description">Kurzbeschreibung öffentlich anzeigen</label>
           <input type="checkbox" v-model="privacy.is_description_public" id="public_description" />
         </div>
-
         <div class="checkbox-group">
           <label for="public_picture">Profilbild öffentlich anzeigen</label>
           <input type="checkbox" v-model="privacy.is_profile_picture_public" id="public_picture" />
         </div>
       </fieldset>
 
-      <!-- Neuer Abschnitt: Anzeigeoptionen für Seiten-Elemente -->
-      <fieldset class="form-group">
+      <fieldset class="form-group" v-if="!authStore.user.is_child_account">
         <legend>Seitenanzeigeoptionen</legend>
         <div class="checkbox-group">
           <label for="show_chat">KI-Assistent-Chat anzeigen</label>
@@ -57,6 +53,15 @@
           <label for="show_comments">Kommentare anzeigen</label>
           <input type="checkbox" id="show_comments" v-model="preferences.show_comments" />
         </div>
+        <div class="form-group">
+          <label for="theme_preference">Anzeigemodus</label>
+          <select id="theme_preference" v-model="preferences.theme_preference">
+            <option value="system">System</option>
+            <option value="light">Hell</option>
+            <option value="dark">Dunkel</option>
+            <option value="high-contrast">Hoher Kontrast</option>
+          </select>
+        </div>
       </fieldset>
 
       <button type="submit">Profil aktualisieren</button>
@@ -67,6 +72,7 @@
 <script>
 import { ref, onMounted } from "vue";
 import { useAuthStore } from "../store/auth";
+
 export default {
   name: "Profile",
   setup() {
@@ -86,16 +92,17 @@ export default {
     const preferences = ref({
       show_chat: true,
       show_stats: true,
-      show_comments: true
+      show_comments: true,
+      theme_preference: "system"
     });
     const selectedFile = ref(null);
 
     const fetchProfile = async () => {
       try {
-        const response = await fetch("http://127.0.0.1:8000/api/user/profile", {
+        const res = await fetch("http://127.0.0.1:8000/api/user/profile", {
           headers: { Authorization: "Bearer " + authStore.token }
         });
-        const data = await response.json();
+        const data = await res.json();
         profile.value = {
           full_name: data.full_name || "",
           birth_date: data.birth_date || "",
@@ -111,15 +118,21 @@ export default {
         preferences.value = {
           show_chat: data.show_chat,
           show_stats: data.show_stats,
-          show_comments: data.show_comments
+          show_comments: data.show_comments,
+          theme_preference: data.theme_preference || "system"
         };
+        authStore.user = { ...authStore.user, ...data };
+        const t = preferences.value.theme_preference === "system"
+          ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+          : preferences.value.theme_preference;
+        document.documentElement.setAttribute("data-theme", t);
       } catch (error) {
         console.error("Fehler beim Laden des Profils:", error);
       }
     };
 
-    const handleFileUpload = (event) => {
-      selectedFile.value = event.target.files[0];
+    const handleFileUpload = (e) => {
+      selectedFile.value = e.target.files[0];
     };
 
     const updateProfile = async () => {
@@ -130,34 +143,33 @@ export default {
       if (selectedFile.value) {
         formData.append("profile_picture", selectedFile.value);
       }
-      formData.append("is_full_name_public", privacy.value.is_full_name_public);
-      formData.append("is_age_public", privacy.value.is_age_public);
-      formData.append("is_description_public", privacy.value.is_description_public);
-      formData.append("is_profile_picture_public", privacy.value.is_profile_picture_public);
-      formData.append("show_chat", preferences.value.show_chat);
-      formData.append("show_stats", preferences.value.show_stats);
-      formData.append("show_comments", preferences.value.show_comments);
+      if (!authStore.user.is_child_account) {
+        formData.append("is_full_name_public", privacy.value.is_full_name_public);
+        formData.append("is_age_public", privacy.value.is_age_public);
+        formData.append("is_description_public", privacy.value.is_description_public);
+        formData.append("is_profile_picture_public", privacy.value.is_profile_picture_public);
+        formData.append("show_chat", preferences.value.show_chat);
+        formData.append("show_stats", preferences.value.show_stats);
+        formData.append("show_comments", preferences.value.show_comments);
+        formData.append("theme_preference", preferences.value.theme_preference);
+      }
       try {
-        const response = await fetch("http://127.0.0.1:8000/api/user/profile", {
+        const res = await fetch("http://127.0.0.1:8000/api/user/profile", {
           method: "PUT",
           headers: { Authorization: "Bearer " + authStore.token },
           body: formData
         });
-        const data = await response.json();
+        await res.json();
         alert("Profil erfolgreich aktualisiert!");
-        // Optional: Update authStore.user falls benötigt
-        authStore.user = { ...authStore.user, ...data };
-        fetchProfile();
+        await fetchProfile();
       } catch (error) {
         console.error("Fehler beim Aktualisieren des Profils:", error);
       }
     };
 
-    onMounted(() => {
-      fetchProfile();
-    });
+    onMounted(fetchProfile);
 
-    return { profile, privacy, preferences, handleFileUpload, updateProfile };
+    return { authStore, profile, privacy, preferences, handleFileUpload, updateProfile };
   }
 };
 </script>
@@ -178,11 +190,20 @@ export default {
   margin-bottom: 0.5rem;
 }
 .profile input,
-.profile textarea {
+.profile textarea,
+.profile select {
   width: 100%;
   padding: 0.5rem;
   border: 1px solid #004c97;
   border-radius: 4px;
+}
+.checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.checkbox-group label {
+  margin: 0;
 }
 .profile button {
   padding: 0.75rem 1rem;
@@ -191,17 +212,5 @@ export default {
   border: none;
   border-radius: 4px;
   cursor: pointer;
-}
-.form-group {
-  padding: 0 1rem;
-}
-.checkbox-group {
-  display: flex;
-  align-items: center;
-  margin: 0.5rem 0;
-  gap: 1rem;
-}
-.checkbox-group label {
-  margin: 0;
 }
 </style>
