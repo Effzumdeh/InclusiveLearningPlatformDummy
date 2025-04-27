@@ -49,6 +49,13 @@ def startup_event() -> None:
             if "course_content" not in course_columns:
                 connection.execute(text("ALTER TABLE courses ADD COLUMN course_content VARCHAR"))
 
+    with engine.begin() as connection:
+        # Prüfe, ob Index existiert, sonst anlegen
+        result = connection.execute(text("PRAGMA index_list('user_statistics')"))
+        indexes = [row[1] for row in result]
+        if "idx_user_statistics_date_user_id" not in indexes:
+            connection.execute(text("CREATE UNIQUE INDEX idx_user_statistics_date_user_id ON user_statistics(date, user_id)"))
+
     # Migrate comments table
     if inspector.has_table("comments"):
         comment_columns = [col["name"] for col in inspector.get_columns("comments")]

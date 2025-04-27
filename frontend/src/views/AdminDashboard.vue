@@ -18,7 +18,13 @@
         <tr v-for="user in users" :key="user.id">
           <td>{{ user.id }}</td>
           <td>{{ user.username }}</td>
-          <td>{{ user.role }}</td>
+          <td>
+            <select v-model="user.role" @change="updateUserRole(user)">
+              <option value="User">User</option>
+              <option value="Teacher">Teacher</option>
+              <option value="Admin">Admin</option>
+            </select>
+          </td>
           <td>{{ user.daily_target }}</td>
         </tr>
       </tbody>
@@ -34,12 +40,10 @@
 <script>
 import { ref, onMounted } from "vue";
 import { useAuthStore } from "../store/auth";
-import { useRouter } from "vue-router";
 export default {
   name: "AdminDashboard",
   setup() {
     const authStore = useAuthStore();
-    const router = useRouter();
     const users = ref([]);
     const aggregatedStats = ref({ total_minutes: 0, average_minutes: 0 });
 
@@ -65,6 +69,27 @@ export default {
       }
     };
 
+    const updateUserRole = async (user) => {
+      try {
+        const response = await fetch(`http://127.0.0.1:8000/api/admin/users/${user.id}/role`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + authStore.token,
+          },
+          body: JSON.stringify({ role: user.role }),
+        });
+        if (!response.ok) {
+          const errorData = await response.json();
+          alert(errorData.detail || "Fehler beim Aktualisieren der Rolle.");
+          await fetchUsers(); // Revert on error
+        }
+      } catch (error) {
+        console.error("Error updating user role:", error);
+        await fetchUsers(); // Revert on error
+      }
+    };
+
     onMounted(() => {
       fetchUsers();
       fetchAggregatedStats();
@@ -74,6 +99,7 @@ export default {
       authStore,
       users,
       aggregatedStats,
+      updateUserRole,
     };
   },
 };
@@ -93,6 +119,13 @@ export default {
   border: 1px solid #004c97;
   padding: 0.5rem;
   text-align: left;
+}
+.users-table select {
+  padding: 0.25rem;
+  border-radius: 4px;
+  border: 1px solid #004c97;
+  background-color: var(--bg);
+  color: var(--fg);
 }
 .aggregated-stats p {
   font-size: 1rem;

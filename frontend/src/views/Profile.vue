@@ -70,7 +70,7 @@
 </template>
 
 <script>
-import { ref, onMounted } from "vue";
+import { ref, onMounted, watch } from "vue";
 import { useAuthStore } from "../store/auth";
 
 export default {
@@ -118,14 +118,23 @@ export default {
           theme_preference: data.theme_preference || "system"
         };
         authStore.user = { ...authStore.user, ...data };
-        const t = preferences.value.theme_preference === "system"
-          ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
-          : preferences.value.theme_preference;
-        document.documentElement.setAttribute("data-theme", t);
+        applyTheme(preferences.value.theme_preference);
       } catch (error) {
         console.error("Fehler beim Laden des Profils:", error);
       }
     };
+
+    const applyTheme = (themePref) => {
+      let theme = themePref;
+      if (theme === "system") {
+        theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      }
+      document.documentElement.setAttribute("data-theme", theme);
+    };
+
+    watch(() => preferences.value.theme_preference, (newVal) => {
+      applyTheme(newVal);
+    });
 
     const handleFileUpload = (e) => {
       selectedFile.value = e.target.files[0];

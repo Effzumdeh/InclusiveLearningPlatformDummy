@@ -171,20 +171,20 @@ def get_public_profile(user_id: int, db: Session = Depends(get_db)):
 def heartbeat(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Increments today's learning-minutes for the current user by one,
-    using SQLite ON CONFLICT to avoid UNIQUE(date) errors.
+    using SQLite UPSERT with correct ON CONFLICT clause on (date, user_id).
     """
     today_str = date.today().isoformat()
     sql = text("""
         INSERT INTO user_statistics(date, user_id, minutes)
         VALUES(:d, :uid, 1)
-        ON CONFLICT(date) DO UPDATE
-          SET minutes = user_statistics.minutes + 1,
-              user_id = :uid
+        ON CONFLICT(date, user_id) DO UPDATE
+          SET minutes = user_statistics.minutes + 1
     """)
     db.execute(sql, {"d": today_str, "uid": current_user.id})
     db.commit()
-    stat = db.query(UserStatistic).filter_by(date=date.fromisoformat(today_str)).first()
+    stat = db.query(UserStatistic).filter_by(date=date.fromisoformat(today_str), user_id=current_user.id).first()
     return {"date": today_str, "minutes": stat.minutes}
+
 
 # NEW: Self-enrollment endpoints
 @router.get("/courses", response_model=list)
