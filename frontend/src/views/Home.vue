@@ -25,20 +25,6 @@
         <canvas id="statsChart"></canvas>
       </div>
     </section>
-    <div class="dashboard-links" v-if="authStore.user">
-      <router-link v-if="!authStore.user.is_child_account" to="/editor">
-        Kurseditor
-      </router-link>
-      <router-link v-if="authStore.user.role === 'Admin'" to="/dashboard/admin">
-        Admin Panel
-      </router-link>
-      <router-link to="/profile">
-        Mein Profil
-      </router-link>
-      <router-link v-if="!authStore.user.is_child_account" to="/dashboard/family">
-        Für Angehörige/Lehrkräfte
-      </router-link>
-    </div>
   </main>
 </template>
 
@@ -195,8 +181,8 @@ export default {
   border: 1px solid #004c97;
   margin-right: 2rem;
   box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.1);
-  background-color: #ffffff;
-  color: #004c97;
+  background-color: var(--bg);
+  color: var(--fg);
 }
 .course-list {
   list-style-type: none;
@@ -214,13 +200,13 @@ export default {
 }
 .all-courses-link a {
   font-weight: bold;
-  color: #004c97;
+  color: var(--btn-bg);
   text-decoration: underline;
 }
 .learning-paths {
   flex-grow: 1;
-  background-color: #ffffff;
-  color: #004c97;
+  background-color: var(--bg);
+  color: var(--fg);
 }
 .stats-chart {
   margin-top: 2rem;
@@ -236,15 +222,16 @@ export default {
 .target-input input {
   width: 80px;
   padding: 0.25rem;
-  border: 1px solid #004c97;
+  border: 1px solid var(--btn-bg);
   border-radius: 4px;
   margin-right: 0.5rem;
-  color: #004c97;
+  color: var(--fg);
+  background-color: var(--bg);
 }
 .target-input button {
   padding: 0.25rem 0.5rem;
-  background-color: #004c97;
-  color: #ffffff;
+  background-color: var(--btn-bg);
+  color: var(--btn-text);
   border: none;
   border-radius: 4px;
   cursor: pointer;
@@ -258,7 +245,7 @@ export default {
 }
 .dashboard-links a {
   text-decoration: none;
-  color: #004c97;
+  color: var(--btn-bg);
   font-weight: bold;
 }
 </style>

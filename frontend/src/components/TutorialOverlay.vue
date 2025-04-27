@@ -1,5 +1,5 @@
 <template>
-  <div class="tutorial-overlay">
+  <div class="tutorial-overlay" v-if="currentStep">
     <div class="tutorial-content">
       <p>{{ currentStep.message }}</p>
       <button @click="nextStep">Weiter</button>
@@ -10,18 +10,32 @@
 <script>
 import { computed, watch, onMounted } from "vue";
 import { useTutorialStore } from "../store/tutorial";
+
 export default {
   name: "TutorialOverlay",
   emits: ["finish"],
   setup(props, { emit }) {
     const tutorialStore = useTutorialStore();
-    const currentStep = computed(() => tutorialStore.steps[tutorialStore.currentStep] || {});
-    
+
+    // Filter steps to only those with visible elements
+    const filteredSteps = computed(() => {
+      const steps = tutorialStore.tutorials[tutorialStore.currentRoute] || [];
+      return steps.filter(step => {
+        if (!step.selector) return true;
+        const el = document.querySelector(step.selector);
+        if (!el) return false;
+        const style = window.getComputedStyle(el);
+        return style.display !== "none" && style.visibility !== "hidden" && el.offsetParent !== null;
+      });
+    });
+
+    const currentStep = computed(() => filteredSteps.value[tutorialStore.currentStep] || null);
+
     const highlightElement = () => {
       document.querySelectorAll('.tutorial-highlight').forEach(el => {
         el.classList.remove('tutorial-highlight');
       });
-      if (currentStep.value.selector) {
+      if (currentStep.value && currentStep.value.selector) {
         const target = document.querySelector(currentStep.value.selector);
         if (target) {
           target.classList.add('tutorial-highlight');
@@ -30,7 +44,7 @@ export default {
     };
 
     const nextStep = () => {
-      if (tutorialStore.currentStep < tutorialStore.steps.length - 1) {
+      if (tutorialStore.currentStep < filteredSteps.value.length - 1) {
         tutorialStore.nextStep();
         highlightElement();
       } else {
@@ -46,6 +60,11 @@ export default {
     });
 
     watch(() => tutorialStore.currentStep, () => {
+      highlightElement();
+    });
+
+    watch(() => tutorialStore.currentRoute, () => {
+      tutorialStore.currentStep = 0;
       highlightElement();
     });
 
