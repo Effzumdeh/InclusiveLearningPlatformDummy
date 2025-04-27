@@ -3,33 +3,33 @@
     <h2>Kurseditor</h2>
     <form @submit.prevent="saveCourse(false)">
       <label for="title">Kurstitel*</label>
-      <input id="title" type="text" v-model="store.title" @input="updateStore" required />
+      <input id="title" type="text" v-model="store.title" @input="updateStore" required :class="themeClass" />
 
       <label for="shortDesc">Kurzbeschreibung*</label>
-      <input id="shortDesc" type="text" v-model="store.shortDescription" @input="updateStore" required />
+      <input id="shortDesc" type="text" v-model="store.shortDescription" @input="updateStore" required :class="themeClass" />
 
       <label for="courseContent">Kursinhalt*</label>
-      <div ref="quillEditor" class="quill-editor"></div>
+      <div ref="quillEditor" class="quill-editor" :class="themeClass"></div>
 
       <div class="error" v-if="errorMessage">{{ errorMessage }}</div>
 
       <div class="button-group">
-        <button type="submit">{{ store.editingCourseId ? "Kurs aktualisieren" : "Neuen Kurs speichern" }}</button>
-        <button type="button" @click="simulateDidactic">Didaktische Prüfung</button>
-        <button type="button" v-if="store.editingCourseId" @click="cancelEdit">Bearbeitung abbrechen</button>
+        <button type="submit" :class="themeClass">{{ store.editingCourseId ? "Kurs aktualisieren" : "Neuen Kurs speichern" }}</button>
+        <button type="button" @click="simulateDidactic" :class="themeClass">Didaktische Prüfung</button>
+        <button type="button" v-if="store.editingCourseId" @click="cancelEdit" :class="themeClass">Bearbeitung abbrechen</button>
       </div>
     </form>
 
     <CoursePreview
       :title="store.title"
       :shortDescription="store.shortDescription"
-      :courseContent="store.courseContent"
+      :courseContent="store.courseContent || ''"
     />
 
     <FeedbackDisplay v-if="feedback" :feedback="feedback" />
 
     <h3>Bestehende Kurse</h3>
-    <table class="courses-table">
+    <table class="courses-table" :class="themeClass">
       <thead>
         <tr>
           <th>Kurstitel</th>
@@ -42,8 +42,8 @@
           <td>{{ course.title }}</td>
           <td>{{ course.short_description }}</td>
           <td>
-            <button @click="editCourse(course)">Bearbeiten 🖊️</button>
-            <button @click="deleteCourse(course.id)">Löschen 🚮</button>
+            <button @click="editCourse(course)" :class="themeClass">Bearbeiten 🖊️</button>
+            <button @click="deleteCourse(course.id)" :class="themeClass">Löschen 🚮</button>
           </td>
         </tr>
       </tbody>
@@ -51,44 +51,44 @@
 
     <!-- Nutzungs-Statistiken -->
     <h3 v-if="store.editingCourseId">Nutzungsstatistiken</h3>
-    <div v-if="analytics && store.editingCourseId">
+    <div v-if="analytics && store.editingCourseId" :class="themeClass">
       <p>Einzigartige Öffnungen: {{ analytics.unique_openers }}</p>
       <p>Quiz-Teilnehmer: {{ analytics.unique_quiz_participants }}</p>
-      <p>Ø beantwortete Fragen: {{ analytics.avg_questions_answered.toFixed(2) }}</p>
-      <p>Abgeschlossen (%): {{ analytics.percent_completed.toFixed(2) }}%</p>
+      <p>Ø beantwortete Fragen: {{ formatNumber(analytics.avg_questions_answered) }}</p>
+      <p>Abgeschlossen (%): {{ formatNumber(analytics.percent_completed) }}%</p>
     </div>
 
     <!-- Quizfragenverwaltung -->
     <h3 v-if="store.editingCourseId">Quizfragen Verwaltung</h3>
-    <div v-if="store.editingCourseId">
+    <div v-if="store.editingCourseId" :class="themeClass">
       <div class="quiz-form">
         <label for="quizQuestion">Frage:</label>
-        <input id="quizQuestion" type="text" v-model="newQuizQuestion.question_text" />
+        <input id="quizQuestion" type="text" v-model="newQuizQuestion.question_text" :class="themeClass" />
 
         <label for="option1">Option 1:</label>
-        <input id="option1" type="text" v-model="newQuizQuestion.option1" />
+        <input id="option1" type="text" v-model="newQuizQuestion.option1" :class="themeClass" />
 
         <label for="option2">Option 2:</label>
-        <input id="option2" type="text" v-model="newQuizQuestion.option2" />
+        <input id="option2" type="text" v-model="newQuizQuestion.option2" :class="themeClass" />
 
         <label for="option3">Option 3:</label>
-        <input id="option3" type="text" v-model="newQuizQuestion.option3" />
+        <input id="option3" type="text" v-model="newQuizQuestion.option3" :class="themeClass" />
 
         <label for="option4">Option 4:</label>
-        <input id="option4" type="text" v-model="newQuizQuestion.option4" />
+        <input id="option4" type="text" v-model="newQuizQuestion.option4" :class="themeClass" />
 
         <label for="correct_option">Korrekte Option (1-4):</label>
-        <input id="correct_option" type="number" min="1" max="4" v-model.number="newQuizQuestion.correct_option" />
+        <input id="correct_option" type="number" min="1" max="4" v-model.number="newQuizQuestion.correct_option" :class="themeClass" />
 
         <div class="button-group">
-          <button type="button" @click="addQuizQuestion" v-if="!newQuizQuestion.id">Quizfrage hinzufügen</button>
-          <button type="button" @click="updateQuizQuestion" v-else>Quizfrage aktualisieren</button>
-          <button type="button" @click="resetQuizForm">Formular zurücksetzen</button>
+          <button type="button" @click="addQuizQuestion" v-if="!newQuizQuestion.id" :class="themeClass">Quizfrage hinzufügen</button>
+          <button type="button" @click="updateQuizQuestion" v-else :class="themeClass">Quizfrage aktualisieren</button>
+          <button type="button" @click="resetQuizForm" :class="themeClass">Formular zurücksetzen</button>
         </div>
       </div>
       <div class="quiz-list">
         <h4>Bestehende Quizfragen</h4>
-        <table>
+        <table :class="themeClass">
           <thead>
             <tr>
               <th>Frage</th>
@@ -109,8 +109,8 @@
               <td>{{ q.option4 }}</td>
               <td>{{ q.correct_option }}</td>
               <td>
-                <button @click="editQuizQuestion(q)">Bearbeiten</button>
-                <button @click="deleteQuizQuestion(q.id)">Löschen</button>
+                <button @click="editQuizQuestion(q)" :class="themeClass">Bearbeiten</button>
+                <button @click="deleteQuizQuestion(q.id)" :class="themeClass">Löschen</button>
               </td>
             </tr>
           </tbody>
@@ -121,8 +121,9 @@
 </template>
 
 <script>
-import { ref, onMounted, watch } from "vue";
+import { ref, onMounted, watch, computed } from "vue";
 import { useCourseEditorStore } from "../store/courseEditor";
+import { useAuthStore } from "../store/auth";
 import CoursePreview from "../components/CoursePreview.vue";
 import FeedbackDisplay from "../components/FeedbackDisplay.vue";
 import Quill from "quill";
@@ -136,6 +137,7 @@ export default {
   },
   setup() {
     const store = useCourseEditorStore();
+    const authStore = useAuthStore();
     store.loadFromLocal();
     const quillEditor = ref(null);
     let quillInstance = null;
@@ -149,7 +151,6 @@ export default {
       courseContent: "",
     });
 
-    // Quizfragenverwaltung
     const quizQuestions = ref([]);
     const newQuizQuestion = ref({
       question_text: "",
@@ -168,13 +169,10 @@ export default {
           },
         });
         const allCourses = await response.json();
-        // Filter courses by role: Admin sees all, Teacher sees own courses
         const userRole = JSON.parse(atob(localStorage.getItem("token").split('.')[1])).role;
         if (userRole === "Admin") {
           courses.value = allCourses;
         } else if (userRole === "Teacher") {
-          // Filter courses where teacher is creator (assuming course has creator_id, else show all)
-          // Since backend does not have creator_id, fallback to all for now
           courses.value = allCourses;
         } else {
           courses.value = [];
@@ -389,26 +387,30 @@ export default {
       };
     };
 
-    const editCourse = async (course) => {
-      store.title = course.title;
-      store.shortDescription = course.short_description;
-      try {
-        const response = await fetch(`http://127.0.0.1:8000/api/courses/${course.id}`);
-        const data = await response.json();
-        store.courseContent = data.course_content;
-        quillInstance.root.innerHTML = data.course_content;
-        store.editingCourseId = course.id;
-        originalState.value = {
-          title: store.title,
-          shortDescription: store.shortDescription,
-          courseContent: store.courseContent,
-        };
-        await fetchQuizQuestions();
-        await fetchAnalytics();
-      } catch (error) {
-        console.error("Fehler beim Laden des Kurses:", error);
-      }
+const editCourse = async (course) => {
+  store.title = course.title;
+  store.shortDescription = course.short_description;
+  try {
+    const response = await fetch(`http://127.0.0.1:8000/api/courses/${course.id}`, {
+      headers: {
+        Authorization: "Bearer " + localStorage.getItem("token"),
+      },
+    });
+    const data = await response.json();
+    store.courseContent = data.course_content || "";
+    quillInstance.root.innerHTML = data.course_content || "";
+    store.editingCourseId = course.id;
+    originalState.value = {
+      title: store.title,
+      shortDescription: store.shortDescription,
+      courseContent: store.courseContent,
     };
+    await fetchQuizQuestions();
+    await fetchAnalytics();
+  } catch (error) {
+    console.error("Fehler beim Laden des Kurses:", error);
+  }
+};
 
     const cancelEdit = () => {
       store.reset();
@@ -444,8 +446,20 @@ export default {
 
     const filteredCourses = courses;
 
+    const themeClass = computed(() => {
+      const pref = authStore.user?.theme_preference || "system";
+      let theme = pref === "system" ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : pref;
+      return `theme-${theme}`;
+    });
+
+    const formatNumber = (num) => {
+      if (num === undefined || num === null) return "0.00";
+      return Number(num).toFixed(2);
+    };
+
     return {
       store,
+      authStore,
       quillEditor,
       errorMessage,
       saveCourse,
@@ -466,6 +480,8 @@ export default {
       updateQuizQuestion,
       resetQuizForm,
       cancelEdit,
+      themeClass,
+      formatNumber,
     };
   },
 };
@@ -483,15 +499,17 @@ export default {
 .course-editor label {
   margin-top: 1rem;
 }
-.course-editor input[type="text"] {
-  padding: 0.5rem;
-  border: 1px solid #004c97;
+.course-editor input[type="text"],
+.course-editor input[type="number"],
+.course-editor textarea,
+.quill-editor,
+button {
   border-radius: 4px;
+  border: 1px solid #004c97;
+  padding: 0.5rem;
 }
 .quill-editor {
   height: 200px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
   margin-top: 0.5rem;
 }
 .error {
@@ -508,7 +526,6 @@ export default {
   background-color: #004c97;
   color: white;
   border: none;
-  border-radius: 4px;
   cursor: pointer;
 }
 .courses-table {
@@ -527,7 +544,6 @@ export default {
   margin-top: 2rem;
   padding: 1rem;
   border: 1px solid #004c97;
-  border-radius: 4px;
   background-color: #f9f9f9;
 }
 .quiz-form label {
@@ -537,7 +553,6 @@ export default {
   width: 100%;
   padding: 0.5rem;
   border: 1px solid #004c97;
-  border-radius: 4px;
   margin-bottom: 0.5rem;
 }
 .quiz-list {
@@ -552,5 +567,37 @@ export default {
   border: 1px solid #004c97;
   padding: 0.5rem;
   text-align: left;
+}
+
+/* Theme dark */
+.theme-dark input,
+.theme-dark select,
+.theme-dark textarea,
+.theme-dark button,
+.theme-dark .quill-editor,
+.theme-dark .courses-table {
+  background-color: #121212;
+  color: #e0e0e0;
+  border-color: #bb86fc;
+}
+.theme-dark button {
+  background-color: #bb86fc;
+  color: #000;
+}
+
+/* Theme high-contrast */
+.theme-high-contrast input,
+.theme-high-contrast select,
+.theme-high-contrast textarea,
+.theme-high-contrast button,
+.theme-high-contrast .quill-editor,
+.theme-high-contrast .courses-table {
+  background-color: #000;
+  color: #ffff00;
+  border-color: #ffff00;
+}
+.theme-high-contrast button {
+  background-color: #ffff00;
+  color: #000;
 }
 </style>

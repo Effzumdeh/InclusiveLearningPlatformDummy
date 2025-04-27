@@ -60,14 +60,10 @@
         <div class="chat-overlay" v-if="authStore.user && authStore.user.show_chat" aria-live="polite">
           <button class="chat-btn" @click="toggleChat" aria-haspopup="dialog" :aria-expanded="chatOpen" aria-label="Chat öffnen">?</button>
           <div v-if="chatOpen" class="chat-window" role="dialog" aria-label="Chat-Unterstützung">
-            <div class="chat-header">
-              <img src="./assets/assistant.jpg" alt="Portrait von Steve" class="assistant-portrait" />
-              <span>Steve (KI-Assistent)</span>
-              <button class="close-btn-assistant" @click="toggleChat" aria-label="Chat schließen">&times;</button>
-            </div>
-            <div class="chat-body">
-              <div v-for="(msg, idx) in chatMessages" :key="idx" class="chat-message">
+            <div v-for="(msg, idx) in chatMessages" :key="idx" class="chat-message-container">
+              <div class="chat-message">
                 <span class="timestamp">{{ msg.timestamp }}</span> - {{ msg.text }}
+                <button v-if="msg.fromAssistant" class="report-btn" @click="openReportPopup(idx)" aria-label="Antwort melden">⚠️</button>
               </div>
             </div>
             <div class="chat-footer">
@@ -78,6 +74,12 @@
               <button @click="sendMessage">Senden</button>
             </div>
           </div>
+        </div>
+
+        <div v-if="showReportPopup" class="report-popup" role="dialog" aria-modal="true" aria-labelledby="reportTitle">
+          <h3 id="reportTitle">Antwort melden</h3>
+          <p>Danke für die Meldung. Wir werden die Antwort prüfen und uns bei dir melden.</p>
+          <button @click="closeReportPopup">Schließen</button>
         </div>
       </div>
 
@@ -116,7 +118,6 @@ export default {
     const router = useRouter();
     const route = useRoute();
 
-    // Menu open by default
     const menuOpen = ref(true);
 
     const toggleMenu = () => {
@@ -137,7 +138,7 @@ export default {
 
     const logout = () => {
       authStore.logout();
-      chatMessages.value = []; // Clear chat on logout
+      chatMessages.value = [];
       router.push({ name: "LoginRegister" });
     };
     const goHome = () => router.push({ name: "Home" });
@@ -145,24 +146,26 @@ export default {
     const chatOpen = ref(false);
     const chatInput = ref("");
     const chatMessages = ref([]);
-    const addChatMessage = (text) => {
+    const addChatMessage = (text, fromAssistant = false) => {
       chatMessages.value.push({
         text,
         timestamp: new Date().toLocaleTimeString(),
+        fromAssistant,
       });
     };
     const toggleChat = () => {
       chatOpen.value = !chatOpen.value;
       if (chatOpen.value && chatMessages.value.length === 0) {
         addChatMessage(
-          "Hallo, mein Name ist Steve. Du hast Fragen zur Bedienung dieser Lernplattform oder Fragen zum aktuellen Inhalt? Ich helfe dir gerne weiter."
+          "Hallo, mein Name ist Steve. Du hast Fragen zur Bedienung dieser Lernplattform oder Fragen zum aktuellen Inhalt? Ich helfe dir gerne weiter.",
+          true
         );
       }
     };
     const sendMessage = () => {
       if (!chatInput.value.trim()) return;
       const userMsg = chatInput.value.trim();
-      addChatMessage(userMsg);
+      addChatMessage(userMsg, false);
       chatInput.value = "";
       setTimeout(() => {
         let response =
@@ -171,7 +174,7 @@ export default {
           response =
             "Wie wäre es heute mit einer Gemüsepfanne mit Reis und einem frischen Salat?";
         }
-        addChatMessage(response);
+        addChatMessage(response, true);
       }, 1500);
     };
 
@@ -365,7 +368,6 @@ export default {
       } catch {}
     };
 
-    // NEW: Heartbeat to increment learning minutes
     let heartbeatInterval = null;
     const startHeartbeat = () => {
       if (heartbeatInterval) clearInterval(heartbeatInterval);
@@ -384,6 +386,15 @@ export default {
       if (tok) startHeartbeat();
       else if (heartbeatInterval) clearInterval(heartbeatInterval);
     }, { immediate: true });
+
+    // Report popup for assistant answers
+    const showReportPopup = ref(false);
+    const openReportPopup = (index) => {
+      showReportPopup.value = true;
+    };
+    const closeReportPopup = () => {
+      showReportPopup.value = false;
+    };
 
     return {
       authStore,
@@ -411,6 +422,9 @@ export default {
       toggleMenu,
       closeMenu,
       canAccess,
+      showReportPopup,
+      openReportPopup,
+      closeReportPopup,
     };
   }
 };
@@ -591,42 +605,27 @@ header {
   flex-direction: column;
   color: var(--fg);
 }
-.chat-header {
-  background: var(--btn-bg);
-  color: var(--btn-text);
-  padding: 0.5rem;
+.chat-message-container {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
-.assistant-portrait {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  margin-right: 0.5rem;
-  object-fit: cover;
-}
-.close-btn-assistant {
-  background: none;
-  border: none;
-  color: var(--btn-text);
-  font-size: 1.5rem;
-  cursor: pointer;
-  user-select: none;
-}
-.chat-body {
-  padding: 0.5rem;
-  overflow-y: auto;
-  flex-grow: 1;
-  font-size: 0.9rem;
-}
 .chat-message {
   margin-bottom: 0.5rem;
+  flex-grow: 1;
 }
 .timestamp {
   font-size: 0.75rem;
   color: #555;
   margin-right: 0.25rem;
+}
+.report-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  color: var(--btn-bg);
+  margin-left: 0.5rem;
 }
 .chat-footer {
   display: flex;
@@ -673,6 +672,27 @@ header {
   background-color: #004c97;
   color: #fff;
   border-radius: 4px;
+}
+.report-popup {
+  position: fixed;
+  bottom: 150px;
+  right: 1rem;
+  background: var(--bg);
+  border: 2px solid var(--btn-bg);
+  padding: 1rem;
+  border-radius: 4px;
+  z-index: 3000;
+  width: 280px;
+  box-shadow: 0 0 10px var(--btn-bg);
+}
+.report-popup button {
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  background-color: var(--btn-bg);
+  color: var(--btn-text);
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
 }
 footer {
   text-align: center;

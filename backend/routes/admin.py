@@ -6,6 +6,7 @@ from jose import JWTError, jwt
 from fastapi.security import OAuth2PasswordBearer
 from schemas_auth import TokenData
 from dependencies import get_db
+from fastapi import Body
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
@@ -37,6 +38,18 @@ def read_users(db: Session = Depends(get_db), current_admin: User = Depends(get_
             "daily_target": user.daily_target
         } for user in users
     ]
+
+@router.put("/users/{user_id}/role")
+def update_user_role(user_id: int, data: dict = Body(...), db: Session = Depends(get_db), current_admin: User = Depends(get_current_admin)):
+    new_role = data.get("role")
+    if new_role not in ["User", "Teacher", "Admin"]:
+        raise HTTPException(status_code=400, detail="Ungültige Rolle")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Nutzer nicht gefunden")
+    user.role = new_role
+    db.commit()
+    return {"message": "Rolle aktualisiert"}
 
 @router.get("/aggregated-stats")
 def aggregated_stats(db: Session = Depends(get_db), current_admin: User = Depends(get_current_admin)):

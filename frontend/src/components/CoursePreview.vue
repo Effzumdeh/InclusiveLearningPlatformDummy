@@ -3,7 +3,7 @@
     <h3>Live-Vorschau</h3>
     <h2>{{ title }}</h2>
     <h4>{{ shortDescription }}</h4>
-    <div v-html="courseContent"></div>
+    <div v-html="safeCourseContent"></div>
   </div>
 </template>
 
@@ -15,6 +15,11 @@ export default {
     shortDescription: String,
     courseContent: String,
   },
+  computed: {
+    safeCourseContent() {
+      return this.courseContent || "";
+    }
+  }
 };
 </script>
 
