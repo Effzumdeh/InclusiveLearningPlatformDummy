@@ -1,5 +1,5 @@
 <template>
-  <div class="app">
+  <div :class="['app', { 'sidebar-open': menuOpen && !isLoginPage }]">
     <header>
       <nav aria-label="Hauptnavigation" class="header-nav">
         <button
@@ -44,7 +44,7 @@
       </ul>
     </aside>
 
-    <div :class="['main-content-wrapper', { 'sidebar-open': menuOpen && !isLoginPage }]">
+    <div class="main-content-wrapper">
       <div v-if="!isLoginPage">
         <div class="next-meeting-box" role="region" aria-label="Nächster Termin">
           <div class="meeting-text">
@@ -60,6 +60,10 @@
         <div class="chat-overlay" v-if="authStore.user && authStore.user.show_chat" aria-live="polite">
           <button class="chat-btn" @click="toggleChat" aria-haspopup="dialog" :aria-expanded="chatOpen" aria-label="Chat öffnen">?</button>
           <div v-if="chatOpen" class="chat-window" role="dialog" aria-label="Chat-Unterstützung">
+                    <div class="chat-header">
+             <img src="./assets/assistant.jpg" alt="Portrait von Steve" class="assistant-portrait" /> 
+             <span>Steve (KI-Assistent)</span>
+             </div>
             <div v-for="(msg, idx) in chatMessages" :key="idx" class="chat-message-container">
               <div class="chat-message">
                 <span class="timestamp">{{ msg.timestamp }}</span> - {{ msg.text }}
@@ -490,10 +494,22 @@ header {
   border-radius: 4px !important;
   cursor: pointer !important;
 }
+.app.sidebar-open .header-buttons {
+  transform: translateX(250px);
+  transition: transform 0.3s ease;
+}
 .main-content-wrapper {
   transition: margin-left 0.3s ease;
   padding: 1rem 2rem;
 }
+
+.app.sidebar-open header,
+.app.sidebar-open .main-content-wrapper {
+  margin-left: 0px;          /* Breite Deiner Sidebar */
+  transition: margin-left 0.3s ease;
+}
+
+
 .sidebar-open {
   margin-left: 250px;
 }
@@ -605,6 +621,26 @@ header {
   flex-direction: column;
   color: var(--fg);
 }
+.chat-header {
+   background: var(--btn-bg);
+   color: var(--btn-text);
+   padding: 0.5rem;
+}
+.assistant-portrait {
+   width: 40px;
+   height: 40px;
+   border-radius: 50%;
+   margin-right: 0.5rem;
+   object-fit: cover;
+ }
+ .close-btn-assistant {
+   background: none;
+   border: none;
+   color: var(--btn-text);
+   font-size: 1.5rem;
+   cursor: pointer;
+   user-select: none;
+ }
 .chat-message-container {
   display: flex;
   align-items: center;
