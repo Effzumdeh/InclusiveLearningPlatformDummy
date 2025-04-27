@@ -1,8 +1,18 @@
 <template>
   <div class="app">
     <header>
-      <nav aria-label="Hauptnavigation">
-        <div class="header-buttons" v-if="authStore.token">
+      <nav aria-label="Hauptnavigation" class="header-nav">
+        <button
+          v-if="!isLoginPage"
+          class="burger-btn"
+          @click="toggleMenu"
+          :aria-expanded="menuOpen"
+          aria-controls="sidebar-menu"
+          aria-label="Menü ein-/ausklappen"
+        >
+          ☰
+        </button>
+        <div class="header-buttons" v-if="authStore.token && !menuOpen">
           <button class="header-button" @click="logout">Abmelden 🚪</button>
           <button class="header-button" v-if="route.name !== 'Home'" @click="goHome">Zur Hauptseite 🏠</button>
         </div>
@@ -10,59 +20,81 @@
       <h1>Willkommen auf der Lernplattform</h1>
     </header>
 
-    <div v-if="!isLoginPage">
-      <div class="next-meeting-box" role="region" aria-label="Nächster Termin">
-        <div class="meeting-text">
-          Dein nächster Kurstermin findet statt am:
-          {{ meetingStartFull }} – {{ meetingEndFull }}<br />
-          Thema: Digitale Diversität
-        </div>
-        <button class="meeting-button" :disabled="!meetingActive" @click="handleMeetingClick">
-          Jetzt der Videokonferenz beitreten <span class="meeting-emojis">📹👥</span>
-        </button>
-      </div>
+    <aside
+      class="sidebar"
+      :class="{ open: menuOpen }"
+      id="sidebar-menu"
+      aria-label="Hauptmenü"
+      v-if="!isLoginPage"
+    >
+      <button class="close-btn" @click="closeMenu" aria-label="Menü schließen">X</button>
+      <ul class="menu-list">
+        <li v-if="canAccess('Teacher') || canAccess('Admin')">
+          <router-link to="/editor" @click.native="closeMenu">Kurseditor</router-link>
+        </li>
+        <li>
+          <router-link to="/profile" @click.native="closeMenu">Mein Profil</router-link>
+        </li>
+        <li v-if="canAccess('Admin')">
+          <router-link to="/dashboard/admin" @click.native="closeMenu">Admin-Panel</router-link>
+        </li>
+        <li v-if="!authStore.user?.is_child_account">
+          <router-link to="/dashboard/family" @click.native="closeMenu">Für Angehörige/Lehrkräfte</router-link>
+        </li>
+      </ul>
+    </aside>
 
-      <div class="chat-overlay" v-if="authStore.user && authStore.user.show_chat" aria-live="polite">
-        <button class="chat-btn" @click="toggleChat" aria-haspopup="dialog" :aria-expanded="chatOpen" aria-label="Chat öffnen">?</button>
-        <div v-if="chatOpen" class="chat-window" role="dialog" aria-label="Chat-Unterstützung">
-          <div class="chat-header">
-            <img src="./assets/assistant.jpg" alt="Portrait von Steve" class="assistant-portrait" />
-            <span>Steve (KI-Assistent)</span>
-            <button class="close-btn" @click="toggleChat" aria-label="Chat schließen">&times;</button>
+    <div :class="['main-content-wrapper', { 'sidebar-open': menuOpen && !isLoginPage }]">
+      <div v-if="!isLoginPage">
+        <div class="next-meeting-box" role="region" aria-label="Nächster Termin">
+          <div class="meeting-text">
+            Dein nächster Kurstermin findet statt am:
+            {{ meetingStartFull }} – {{ meetingEndFull }}<br />
+            Thema: Digitale Diversität
           </div>
-          <div class="chat-body">
-            <div v-for="(msg, idx) in chatMessages" :key="idx" class="chat-message">
-              <span class="timestamp">{{ msg.timestamp }}</span> - {{ msg.text }}
+          <button class="meeting-button" :disabled="!meetingActive" @click="handleMeetingClick">
+            Jetzt der Videokonferenz beitreten <span class="meeting-emojis">📹👥</span>
+          </button>
+        </div>
+
+        <div class="chat-overlay" v-if="authStore.user && authStore.user.show_chat" aria-live="polite">
+          <button class="chat-btn" @click="toggleChat" aria-haspopup="dialog" :aria-expanded="chatOpen" aria-label="Chat öffnen">?</button>
+          <div v-if="chatOpen" class="chat-window" role="dialog" aria-label="Chat-Unterstützung">
+            <div class="chat-header">
+              <img src="./assets/assistant.jpg" alt="Portrait von Steve" class="assistant-portrait" />
+              <span>Steve (KI-Assistent)</span>
+              <button class="close-btn-assistant" @click="toggleChat" aria-label="Chat schließen">&times;</button>
+            </div>
+            <div class="chat-body">
+              <div v-for="(msg, idx) in chatMessages" :key="idx" class="chat-message">
+                <span class="timestamp">{{ msg.timestamp }}</span> - {{ msg.text }}
+              </div>
+            </div>
+            <div class="chat-footer">
+              <input type="text" v-model="chatInput" @keyup.enter="sendMessage" aria-label="Chat-Nachricht eingeben" />
+              <button class="mic-btn" @click="toggleSpeechRecognition">
+                <span v-if="isListening">🛑</span><span v-else>🎤</span>
+              </button>
+              <button @click="sendMessage">Senden</button>
             </div>
           </div>
-          <div class="chat-footer">
-            <input type="text" v-model="chatInput" @keyup.enter="sendMessage" aria-label="Chat-Nachricht eingeben" />
-            <button class="mic-btn" @click="toggleSpeechRecognition">
-              <span v-if="isListening">🛑</span><span v-else>🎤</span>
-            </button>
-            <button @click="sendMessage">Senden</button>
-          </div>
         </div>
       </div>
+
+      <div v-if="showMisclickAlert" class="misclick-alert" role="alertdialog" aria-modal="true" aria-labelledby="misclickTitle">
+        <p id="misclickTitle">
+          Es scheint, dass Du häufig knapp das Ziel deiner Klicks verfehlst. Möchtest Du die Schriftgröße erhöhen?
+        </p>
+        <button @click="onMisclickOk">OK</button>
+        <button @click="showMisclickAlert = false">Nein</button>
+      </div>
+
+      <router-view />
+
+      <TutorialOverlay v-if="tutorialActive" @finish="finishTutorial" />
+
+      <FontSizeSlider />
     </div>
-
-    <div v-if="showMisclickAlert" class="misclick-alert" role="alertdialog" aria-modal="true" aria-labelledby="misclickTitle">
-      <p id="misclickTitle">
-        Es scheint, dass Du häufig knapp das Ziel deiner Klicks verfehlst. Möchtest Du die Schriftgröße erhöhen?
-      </p>
-      <button @click="onMisclickOk">OK</button>
-      <button @click="showMisclickAlert = false">Nein</button>
-    </div>
-
-    <router-view />
-
-    <TutorialOverlay v-if="tutorialActive" @finish="finishTutorial" />
-
-    <footer id="tutorial-footer">
-      <a href="#" @click.prevent="restartTutorial">Tutorial wiederholen</a>
-    </footer>
-
-    <FontSizeSlider />
   </div>
 </template>
 
@@ -84,10 +116,28 @@ export default {
     const router = useRouter();
     const route = useRoute();
 
+    // Menu open by default
+    const menuOpen = ref(true);
+
+    const toggleMenu = () => {
+      menuOpen.value = !menuOpen.value;
+    };
+    const closeMenu = () => {
+      menuOpen.value = false;
+    };
+
+    const canAccess = (role) => {
+      if (!authStore.user) return false;
+      if (role === "Admin") return authStore.user.role === "Admin";
+      if (role === "Teacher") return authStore.user.role === "Teacher" || authStore.user.role === "Admin";
+      return false;
+    };
+
     const isLoginPage = computed(() => route.name === "LoginRegister");
 
     const logout = () => {
       authStore.logout();
+      chatMessages.value = []; // Clear chat on logout
       router.push({ name: "LoginRegister" });
     };
     const goHome = () => router.push({ name: "Home" });
@@ -231,7 +281,9 @@ export default {
           pref === "system"
             ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
             : pref;
-        document.documentElement.setAttribute("data-theme", theme);
+        setTimeout(() => {
+          document.documentElement.setAttribute("data-theme", theme);
+        }, 0);
       } catch {}
     };
 
@@ -354,7 +406,11 @@ export default {
       restartTutorial,
       finishTutorial,
       showMisclickAlert,
-      onMisclickOk
+      onMisclickOk,
+      menuOpen,
+      toggleMenu,
+      closeMenu,
+      canAccess,
     };
   }
 };
@@ -388,21 +444,93 @@ body {
 header {
   background-color: var(--btn-bg) !important;
   color: var(--btn-text) !important;
-  padding: 1rem;
+  padding: 1rem 1rem 1rem 4rem;
   text-align: center;
+  position: relative;
 }
-button,
-.header-button,
-.meeting-button,
-.chat-btn {
-  background-color: var(--btn-bg) !important;
-  color: var(--btn-text) !important;
+.header-nav {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding-left: 0.5rem;
+  gap: 0.5rem;
+  z-index: 1100;
+}
+.burger-btn {
+  font-size: 1.5rem;
+  background: var(--btn-bg);
+  color: var(--btn-text);
   border: none;
+  padding: 0.25rem 0.75rem;
   cursor: pointer;
+  border-radius: 4px;
 }
-:focus {
-  outline: 3px solid #ffbf47;
-  outline-offset: 2px;
+.header-buttons button {
+  background-color: #007700 !important;
+  border: none !important;
+  color: #ffffff !important;
+  padding: 0.5rem !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+}
+.main-content-wrapper {
+  transition: margin-left 0.3s ease;
+  padding: 1rem 2rem;
+}
+.sidebar-open {
+  margin-left: 250px;
+}
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 250px;
+  height: 100vh;
+  background-color: var(--bg);
+  border-right: 1px solid var(--btn-bg);
+  box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+  z-index: 1200;
+  padding-top: 4rem;
+  display: flex;
+  flex-direction: column;
+}
+.sidebar.open {
+  transform: translateX(0);
+}
+.close-btn {
+  align-self: flex-end;
+  font-size: 1.5rem;
+  background: none;
+  border: none;
+  color: var(--btn-bg);
+  cursor: pointer;
+  padding: 0 1rem 0 0;
+  margin-bottom: 1rem;
+  user-select: none;
+}
+.menu-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  flex-grow: 1;
+}
+.menu-list li {
+  padding: 1rem 1.5rem;
+}
+.menu-list li a {
+  color: var(--btn-bg);
+  text-decoration: none;
+  font-weight: bold;
+  display: block;
+}
+.menu-list li a:hover,
+.menu-list li a:focus {
+  text-decoration: underline;
 }
 .next-meeting-box {
   display: flex;
@@ -446,6 +574,10 @@ button,
   border-radius: 50%;
   font-size: 2rem;
   box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.2);
+  background-color: var(--btn-bg);
+  color: var(--btn-text);
+  border: none;
+  cursor: pointer;
 }
 .chat-window {
   position: fixed;
@@ -457,6 +589,7 @@ button,
   border-radius: 4px;
   display: flex;
   flex-direction: column;
+  color: var(--fg);
 }
 .chat-header {
   background: var(--btn-bg);
@@ -472,6 +605,14 @@ button,
   border-radius: 50%;
   margin-right: 0.5rem;
   object-fit: cover;
+}
+.close-btn-assistant {
+  background: none;
+  border: none;
+  color: var(--btn-text);
+  font-size: 1.5rem;
+  cursor: pointer;
+  user-select: none;
 }
 .chat-body {
   padding: 0.5rem;
@@ -497,16 +638,24 @@ button,
   padding: 0.5rem;
   border: 1px solid var(--btn-bg);
   border-radius: 4px;
+  color: var(--fg);
+  background-color: var(--bg);
 }
 .chat-footer button {
   margin-left: 0.5rem;
   padding: 0.5rem 1rem;
   border-radius: 4px;
+  background-color: var(--btn-bg);
+  color: var(--btn-text);
+  border: none;
+  cursor: pointer;
 }
 .mic-btn {
   padding: 0.5rem;
-  background-color: #eeeeee;
-  border: 1px solid #004c97;
+  background-color: var(--btn-text);
+  border: 1px solid var(--btn-bg);
+  color: var(--btn-bg);
+  cursor: pointer;
 }
 .misclick-alert {
   position: fixed;
@@ -540,13 +689,5 @@ footer a {
   box-shadow: 0 0 10px 5px yellow;
   position: relative;
   z-index: 1100;
-}
-.header-buttons button {
-  background-color: #007700 !important;
-  border: none !important;
-  color: #ffffff !important;
-  padding: 0.5rem !important;
-  border-radius: 4px !important;
-  cursor: pointer !important;
 }
 </style>

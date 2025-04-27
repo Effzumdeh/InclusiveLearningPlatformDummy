@@ -14,8 +14,9 @@
       <div class="error" v-if="errorMessage">{{ errorMessage }}</div>
 
       <div class="button-group">
-        <button type="button" @click="saveCourse(false)">Kurs speichern</button>
-        <button type="button" @click="simulateDidactic()">Didaktische Prüfung</button>
+        <button type="submit">{{ store.editingCourseId ? "Kurs aktualisieren" : "Neuen Kurs speichern" }}</button>
+        <button type="button" @click="simulateDidactic">Didaktische Prüfung</button>
+        <button type="button" v-if="store.editingCourseId" @click="cancelEdit">Bearbeitung abbrechen</button>
       </div>
     </form>
 
@@ -37,7 +38,7 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="course in courses" :key="course.id">
+        <tr v-for="course in filteredCourses" :key="course.id">
           <td>{{ course.title }}</td>
           <td>{{ course.short_description }}</td>
           <td>
@@ -49,16 +50,16 @@
     </table>
 
     <!-- Nutzungs-Statistiken -->
-    <h3>Nutzungsstatistiken</h3>
-    <div v-if="analytics">
+    <h3 v-if="store.editingCourseId">Nutzungsstatistiken</h3>
+    <div v-if="analytics && store.editingCourseId">
       <p>Einzigartige Öffnungen: {{ analytics.unique_openers }}</p>
       <p>Quiz-Teilnehmer: {{ analytics.unique_quiz_participants }}</p>
       <p>Ø beantwortete Fragen: {{ analytics.avg_questions_answered.toFixed(2) }}</p>
       <p>Abgeschlossen (%): {{ analytics.percent_completed.toFixed(2) }}%</p>
     </div>
 
-    <!-- Neuer Abschnitt: Quizfragenverwaltung -->
-    <h3>Quizfragen Verwaltung</h3>
+    <!-- Quizfragenverwaltung -->
+    <h3 v-if="store.editingCourseId">Quizfragen Verwaltung</h3>
     <div v-if="store.editingCourseId">
       <div class="quiz-form">
         <label for="quizQuestion">Frage:</label>
@@ -124,7 +125,6 @@ import { ref, onMounted, watch } from "vue";
 import { useCourseEditorStore } from "../store/courseEditor";
 import CoursePreview from "../components/CoursePreview.vue";
 import FeedbackDisplay from "../components/FeedbackDisplay.vue";
-import { useRouter } from "vue-router";
 import Quill from "quill";
 import "quill/dist/quill.snow.css";
 
@@ -137,7 +137,6 @@ export default {
   setup() {
     const store = useCourseEditorStore();
     store.loadFromLocal();
-    const router = useRouter();
     const quillEditor = ref(null);
     let quillInstance = null;
     const errorMessage = ref("");
@@ -163,8 +162,23 @@ export default {
 
     const fetchCourses = async () => {
       try {
-        const response = await fetch("http://127.0.0.1:8000/api/courses");
-        courses.value = await response.json();
+        const response = await fetch("http://127.0.0.1:8000/api/courses", {
+          headers: {
+            Authorization: "Bearer " + localStorage.getItem("token"),
+          },
+        });
+        const allCourses = await response.json();
+        // Filter courses by role: Admin sees all, Teacher sees own courses
+        const userRole = JSON.parse(atob(localStorage.getItem("token").split('.')[1])).role;
+        if (userRole === "Admin") {
+          courses.value = allCourses;
+        } else if (userRole === "Teacher") {
+          // Filter courses where teacher is creator (assuming course has creator_id, else show all)
+          // Since backend does not have creator_id, fallback to all for now
+          courses.value = allCourses;
+        } else {
+          courses.value = [];
+        }
       } catch (error) {
         console.error("Fehler beim Abrufen der Kurse:", error);
       }
@@ -182,11 +196,16 @@ export default {
         } catch (error) {
           console.error("Fehler beim Laden der Quizfragen:", error);
         }
+      } else {
+        quizQuestions.value = [];
       }
     };
 
     const fetchAnalytics = async () => {
-      if (!store.editingCourseId) return;
+      if (!store.editingCourseId) {
+        analytics.value = null;
+        return;
+      }
       try {
         const r = await fetch(`http://127.0.0.1:8000/api/courses/${store.editingCourseId}/analytics`, {
           headers: {
@@ -353,7 +372,7 @@ export default {
             feedback.value = null;
             store.reset();
             quillInstance.root.innerHTML = "";
-            fetchCourses();
+            await fetchCourses();
             originalState.value = { title: "", shortDescription: "", courseContent: "" };
           }
         } catch (error) {
@@ -391,16 +410,24 @@ export default {
       }
     };
 
+    const cancelEdit = () => {
+      store.reset();
+      quillInstance.root.innerHTML = "";
+      feedback.value = null;
+      analytics.value = null;
+      quizQuestions.value = [];
+    };
+
     const deleteCourse = async (courseId) => {
       if (!confirm("Möchten Sie diesen Kurs wirklich löschen?")) return;
       try {
         await fetch(`http://127.0.0.1:8000/api/courses/${courseId}`, {
           method: "DELETE",
+          headers: { Authorization: "Bearer " + localStorage.getItem("token") },
         });
-        fetchCourses();
+        await fetchCourses();
         if (store.editingCourseId === courseId) {
-          store.reset();
-          quillInstance.root.innerHTML = "";
+          cancelEdit();
         }
       } catch (error) {
         console.error("Fehler beim Löschen des Kurses:", error);
@@ -415,6 +442,8 @@ export default {
       );
     };
 
+    const filteredCourses = courses;
+
     return {
       store,
       quillEditor,
@@ -424,6 +453,7 @@ export default {
       feedback,
       updateStore,
       courses,
+      filteredCourses,
       analytics,
       editCourse,
       deleteCourse,
@@ -435,6 +465,7 @@ export default {
       editQuizQuestion,
       updateQuizQuestion,
       resetQuizForm,
+      cancelEdit,
     };
   },
 };

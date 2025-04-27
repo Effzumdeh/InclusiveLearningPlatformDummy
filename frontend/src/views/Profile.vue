@@ -1,5 +1,5 @@
 <template>
-  <div class="profile">
+  <div class="profile" v-if="profile">
     <h2>Mein Profil</h2>
     <form @submit.prevent="updateProfile" enctype="multipart/form-data">
       <div class="form-group">
@@ -19,7 +19,7 @@
         <input id="profile_picture" type="file" @change="handleFileUpload" />
       </div>
 
-      <fieldset class="form-group" v-if="!authStore.user.is_child_account">
+      <fieldset class="form-group" v-if="!authStore.user?.is_child_account">
         <legend>Öffentliche Anzeigeoptionen</legend>
         <div class="checkbox-group">
           <label for="public_name">Name öffentlich anzeigen</label>
@@ -39,7 +39,7 @@
         </div>
       </fieldset>
 
-      <fieldset class="form-group" v-if="!authStore.user.is_child_account">
+      <fieldset class="form-group" v-if="!authStore.user?.is_child_account">
         <legend>Seitenanzeigeoptionen</legend>
         <div class="checkbox-group">
           <label for="show_chat">KI-Assistent-Chat anzeigen</label>
@@ -77,12 +77,7 @@ export default {
   name: "Profile",
   setup() {
     const authStore = useAuthStore();
-    const profile = ref({
-      full_name: "",
-      birth_date: "",
-      short_description: "",
-      profile_picture: ""
-    });
+    const profile = ref(null);
     const privacy = ref({
       is_full_name_public: true,
       is_age_public: true,
@@ -102,6 +97,7 @@ export default {
         const res = await fetch("http://127.0.0.1:8000/api/user/profile", {
           headers: { Authorization: "Bearer " + authStore.token }
         });
+        if (!res.ok) throw new Error("Failed to fetch profile");
         const data = await res.json();
         profile.value = {
           full_name: data.full_name || "",
@@ -143,7 +139,7 @@ export default {
       if (selectedFile.value) {
         formData.append("profile_picture", selectedFile.value);
       }
-      if (!authStore.user.is_child_account) {
+      if (!authStore.user?.is_child_account) {
         formData.append("is_full_name_public", privacy.value.is_full_name_public);
         formData.append("is_age_public", privacy.value.is_age_public);
         formData.append("is_description_public", privacy.value.is_description_public);
@@ -159,6 +155,7 @@ export default {
           headers: { Authorization: "Bearer " + authStore.token },
           body: formData
         });
+        if (!res.ok) throw new Error("Update failed");
         await res.json();
         alert("Profil erfolgreich aktualisiert!");
         await fetchProfile();
